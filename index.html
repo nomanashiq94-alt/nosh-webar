@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-slate-900 text-slate-100">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gourmet WebAR Menu & Order App</title>
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  
+  <!-- Google Fonts (Inter) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Google Model Viewer Script for WebAR -->
+  <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
+
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+    model-viewer {
+      width: 100%;
+      height: 100%;
+      --poster-color: transparent;
+    }
+    .ar-button {
+      background-color: #f59e0b;
+      color: #0f172a;
+      border-radius: 9999px;
+      padding: 12px 24px;
+      font-weight: 700;
+      box-shadow: 0 10px 25px -5px rgba(245, 158, 11, 0.4);
+      position: absolute;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      border: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      z-index: 99;
+    }
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 4px;
+      height: 4px;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 4px;
+    }
+    .admin-input { display:block; width:100%; margin-top:5px; padding:10px; border-radius:10px; background:#1e293b; border:1px solid #475569; color:white; }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col bg-slate-950 pb-20 sm:pb-0">
+
+  <!-- Header Section -->
+  <header class="sticky top-0 z-30 bg-slate-900/90 backdrop-blur-md border-b border-slate-800">
+    <div class="max-w-md mx-auto px-4 py-3.5 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-500 flex items-center justify-center text-slate-950 font-bold shadow-lg shadow-orange-500/20">
+          <i class="fa-solid fa-utensils text-lg"></i>
+        </div>
+        <div>
+          <h1 class="font-bold text-base leading-tight text-white">Nosh</h1>
+          <p class="text-[11px] text-amber-400 font-medium">Explore Menu · Order Fresh</p>
+        </div>
+      </div>
+
+      <button onclick="openKitchen()" class="text-xs px-3 py-2 rounded-xl border border-slate-700 text-amber-400"><i class="fa-solid fa-bell-concierge"></i> Kitchen</button>
+      <button onclick="openAdmin()" class="text-xs px-3 py-2 rounded-xl border border-slate-700 text-amber-400"><i class="fa-solid fa-gear"></i> Admin</button>
+       <!-- Header Cart Icon -->
+      <button onclick="toggleCartDrawer()" class="relative p-2.5 rounded-xl bg-slate-800 border border-slate-700 text-slate-300 hover:text-white transition">
+        <i class="fa-solid fa-basket-shopping text-base"></i>
+        <span id="cart-badge-header" class="hidden absolute -top-1.5 -right-1.5 bg-amber-500 text-slate-950 text-[10px] font-extrabold w-5 h-5 rounded-full flex items-center justify-center border-2 border-slate-900">0</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Banner / AR Helper Info -->
+  <div class="max-w-md mx-auto px-4 pt-4 w-full">
+    <div class="p-3.5 rounded-2xl bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-amber-500/5 border border-amber-500/20 flex items-start gap-3">
+      <div class="p-2 rounded-xl bg-amber-500/20 text-amber-400 mt-0.5">
+        <i class="fa-solid fa-cube text-lg"></i>
+      </div>
+      <div>
+        <h2 class="text-xs font-bold text-amber-300 uppercase tracking-wider">See It on Your Table</h2>
+        <p class="text-xs text-slate-400 mt-0.5">Tap <b>"3D / AR"</b> to view dishes with a calibrated food 3D model. AR requires a compatible phone and HTTPS.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <main class="max-w-md mx-auto px-4 py-5 w-full flex-1 flex flex-col gap-4">
+    
+    <!-- Category Filters -->
+    <div class="flex gap-2 overflow-x-auto pb-1 scrollbar-none" id="categories-bar">
+      <!-- Generated via JS -->
+    </div>
+
+    <!-- Dish Cards List -->
+    
+<div id="menu-container" class="space-y-4 pb-28">
+  <!-- Menu items injected here -->
+</div>
+
+  </main>
+
+  <!-- Floating Sticky Cart Button (Mobile View) -->
+  <div class="fixed bottom-1 left-0 right-0 z-20 px-4 max-w-md mx-auto">
+    <button onclick="toggleCartDrawer()" class="w-full py-3.5 px-5 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 font-bold text-sm shadow-xl shadow-orange-500/25 flex items-center justify-between transition transform active:scale-95">
+      <div class="flex items-center gap-3">
+        <div class="relative bg-slate-950/20 p-1 rounded-xl">
+          <i class="fa-solid fa-cart-shopping text-base"></i>
+          <span id="cart-badge-floating" class="absolute -top-2 -right-2 bg-slate-950 text-amber-400 text-[10px] font-black w-5 h-5 rounded-full flex items-center justify-center border border-amber-500">0</span>
+        </div>
+        <span>View Basket</span>
+      </div>
+      <span id="floating-cart-total" class="font-extrabold">Rs. 0</span>
+    </button>
+  </div>
+
+  <!-- 3D / AR Modal Viewer -->
+  <div id="ar-modal" class="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-xl hidden flex flex-col opacity-0 transition-opacity duration-300">
+    <div class="p-4 flex items-center justify-between border-b border-slate-800 bg-slate-900/50">
+      <div>
+        <h3 id="modal-item-title" class="text-base font-bold text-white">Item Name</h3>
+        <p id="modal-item-price" class="text-xs text-amber-400 font-semibold">Rs. 0</p>
+      </div>
+      <button onclick="closeArModal()" class="w-10 h-10 rounded-full bg-slate-800 text-slate-300 hover:text-white flex items-center justify-center transition">
+        <i class="fa-solid fa-xmark text-lg"></i>
+      </button>
+    </div>
+
+    <div class="flex-1 relative w-full h-full bg-slate-950 flex items-center justify-center">
+      <model-viewer
+        id="food-viewer"
+        src=""
+        alt="A 3D food item model"
+        ar
+        ar-modes="webxr scene-viewer quick-look"
+         ar-scale="fixed"
+        camera-controls
+        touch-action="pan-y"
+        auto-rotate
+        shadow-intensity="1.5"
+        shadow-softness="0.8">
+        <button slot="ar-button" class="ar-button">
+          <i class="fa-solid fa-camera text-base"></i>
+          <span>View on Table (AR)</span>
+        </button>
+        <div slot="progress-bar" class="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/80 gap-3">
+          <div class="w-10 h-10 border-4 border-amber-500/30 border-t-amber-500 rounded-full animate-spin"></div>
+          <span class="text-xs text-slate-400 font-medium">Loading AR Model...</span>
+        </div>
+      </model-viewer>
+      <div id="ar-size-status" class="absolute bottom-2 left-3 right-3 text-center text-xs text-amber-300 pointer-events-none"></div>
+
+      <div class="absolute top-4 left-1/2 -translate-x-1/2 bg-slate-900/80 backdrop-blur-md border border-slate-700/50 px-3 py-1.5 rounded-full flex items-center gap-2 pointer-events-none">
+        <i class="fa-solid fa-hand-pointer text-amber-400 text-xs animate-bounce"></i>
+        <span class="text-[11px] text-slate-300">Rotate & Zoom in 3D</span>
+      </div>
+    </div>
+
+    <div class="p-4 bg-slate-900 border-t border-slate-800 flex items-center gap-3">
+      <button onclick="closeArModal()" class="flex-1 py-3 px-4 rounded-xl bg-slate-800 text-slate-300 font-medium text-xs">Close</button>
+      <button id="modal-add-cart-btn" class="flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 font-bold text-xs shadow-lg shadow-orange-500/20">Add to Order</button>
+    </div>
+  </div>
+
+  <!-- Shopping Cart Drawer Overlay -->
+  <div id="cart-drawer-backdrop" onclick="toggleCartDrawer()" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm hidden opacity-0 transition-opacity duration-300"></div>
+  
+  <div id="cart-drawer" class="fixed inset-y-0 right-0 z-50 w-full max-w-md bg-slate-900 shadow-2xl flex flex-col transform translate-x-full transition-transform duration-300 border-l border-slate-800">
+    <div class="p-4 border-b border-slate-800 flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <i class="fa-solid fa-bag-shopping text-amber-400"></i>
+        <h2 class="font-bold text-lg text-white">Your Food Basket</h2>
+      </div>
+      <button onclick="toggleCartDrawer()" class="w-9 h-9 rounded-full bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center">
+        <i class="fa-solid fa-xmark text-lg"></i>
+      </button>
+    </div>
+
+    <!-- Cart Items Container -->
+    <div id="cart-items-list" class="flex-1 overflow-y-auto p-4 space-y-3">
+      <!-- Items dynamically injected here -->
+    </div>
+
+    <!-- Cart Summary & Checkout Trigger -->
+    <div class="p-4 bg-slate-950 border-t border-slate-800 space-y-3">
+      <div class="space-y-1.5 text-xs text-slate-400">
+        <div class="flex justify-between">
+          <span>Subtotal</span>
+          <span id="cart-subtotal" class="text-slate-200 font-semibold">Rs. 0</span>
+        </div>
+        <div class="flex justify-between">
+          <span>Tax / Service (0%)</span>
+          <span id="cart-tax" class="text-slate-200 font-semibold">Rs. 0</span>
+        </div>
+        <div class="flex justify-between text-sm text-white font-bold pt-2 border-t border-slate-800">
+          <span>Grand Total</span>
+          <span id="cart-total" class="text-amber-400">Rs. 0</span>
+        </div>
+      </div>
+
+      <button id="checkout-btn" onclick="openCheckoutModal()" class="w-full py-3.5 rounded-xl bg-amber-500 text-slate-950 font-bold text-sm hover:bg-amber-400 transition shadow-lg shadow-amber-500/20 disabled:opacity-50 disabled:cursor-not-allowed">
+        Proceed to Checkout
+      </button>
+    </div>
+  </div>
+
+  <!-- Checkout Form Modal -->
+  <div id="checkout-modal" class="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md hidden flex items-center justify-center p-4">
+    <div class="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl flex flex-col">
+      <div class="p-4 border-b border-slate-800 flex items-center justify-between">
+        <h3 class="font-bold text-white text-base flex items-center gap-2">
+          <i class="fa-solid fa-receipt text-amber-400"></i> Checkout Details
+        </h3>
+        <button onclick="closeCheckoutModal()" class="text-slate-400 hover:text-white">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <form id="order-form" onsubmit="handlePlaceOrder(event)" class="p-4 space-y-3 text-xs">
+        <div>
+          <label class="block text-slate-400 mb-1 font-medium">Customer Name</label>
+          <input required type="text" id="cust-name" placeholder="John Doe" class="w-full px-3 py-2.5 rounded-xl bg-slate-800 border border-slate-700 text-white focus:outline-none focus:border-amber-500" />
+        </div>
+        <div>
+          <label class="block text-slate-400 mb-1 font-medium">Phone Number</label>
+          <input type="tel" id="cust-phone" placeholder="03XXXXXXXXX" class="w-full px-3 py-2.5 rounded-xl bg-slate-800 border border-slate-700 text-white focus:outline-none focus:border-amber-500" />
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-slate-400 mb-1 font-medium">Table Number / Type</label>
+            <select required id="cust-table" class="w-full px-3 py-2.5 rounded-xl bg-slate-800 border border-slate-700 text-white focus:outline-none focus:border-amber-500"></select>
+          </div>
+          <div>
+            <label class="block text-slate-400 mb-1 font-medium">Payment Method</label>
+            <select id="cust-payment" class="w-full px-3 py-2.5 rounded-xl bg-slate-800 border border-slate-700 text-white focus:outline-none focus:border-amber-500">
+              <option value="Cash">Cash at Counter</option>
+              <option value="Card">Card at Counter</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="pt-3 border-t border-slate-800 flex items-center justify-between">
+          <div>
+            <span class="block text-[10px] text-slate-400">Total Payable</span>
+            <span id="checkout-total-val" class="text-sm font-extrabold text-amber-400">Rs. 0</span>
+          </div>
+          <button type="submit" class="py-3 px-6 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 font-bold text-xs shadow-lg shadow-orange-500/20">
+            Confirm Demo Order
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+
+  <!-- Local admin editor; production multi-device publishing requires a backend -->
+  <div id="admin-modal" class="fixed inset-0 z-[60] bg-slate-950/95 hidden overflow-y-auto p-4">
+    <div class="max-w-lg mx-auto bg-slate-900 border border-slate-700 rounded-2xl p-5 space-y-4">
+      <div class="flex justify-between items-center"><h2 class="text-xl font-bold text-amber-400">Menu Admin</h2><button onclick="closeAdmin()" aria-label="Close admin">✕</button></div>
+      <p class="text-xs text-slate-400">Changes are saved in this browser only until you export a GitHub ZIP and commit it to your repository. GitHub Pages is public and does NOT provide secure admin access or shared live orders.</p>
+      <div class="flex gap-2 flex-wrap"><button onclick="newItem()" class="bg-amber-500 text-slate-950 rounded-lg px-3 py-2 font-bold text-xs">+ New Dish</button><button onclick="exportMenu()" class="bg-slate-700 rounded-lg px-3 py-2 text-xs">Export menu.json</button><button onclick="exportSiteZip()" class="bg-amber-500 text-slate-950 rounded-lg px-3 py-2 text-xs font-bold">Export GitHub ZIP (with media)</button><label class="bg-slate-700 rounded-lg px-3 py-2 text-xs cursor-pointer">Import JSON<input type="file" accept="application/json" class="hidden" onchange="importMenu(event)"></label></div>
+      <div id="admin-list" class="space-y-2"></div>
+      <form id="admin-form" onsubmit="saveItem(event)" class="hidden space-y-3 border-t border-slate-700 pt-4">
+        <h3 id="editor-title" class="font-bold">Dish editor</h3>
+        <input type="hidden" id="edit-id">
+        <label class="block text-xs">Dish name<input id="edit-title" required maxlength="100" class="admin-input" placeholder="Chicken Burger"></label>
+        <label class="block text-xs">Category<input id="edit-category" required maxlength="50" class="admin-input" placeholder="Burgers"></label>
+        <label class="block text-xs">Price (PKR)<input id="edit-price" type="number" required min="0" step="1" class="admin-input" placeholder="850"></label>
+        <label class="block text-xs">Description<textarea id="edit-description" maxlength="500" class="admin-input" rows="2"></textarea></label>
+
+        <label class="block text-xs">Photo URL (HTTPS)<input id="edit-image" type="url" class="admin-input" placeholder="https://..."></label>
+        <label class="block text-xs">3D model GLB URL (HTTPS)<input id="edit-model" type="url" class="admin-input" placeholder="https://.../burger.glb"></label>
+        <label class="block text-xs">iPhone AR USDZ URL (optional)<input id="edit-usdz" type="url" class="admin-input" placeholder="https://.../burger.usdz"></label>
+        <div class="rounded-xl border border-amber-500/30 bg-slate-800/60 p-3 space-y-3">
+          <p class="font-semibold text-sm text-amber-400">Upload files directly from your PC</p>
+          <label class="block text-xs">Food photo (JPG / PNG / WebP)<input id="upload-image" type="file" accept="image/jpeg,image/png,image/webp" class="admin-input"></label>
+          <label class="block text-xs">3D model (.glb)<input id="upload-model" type="file" accept=".glb,model/gltf-binary" class="admin-input"></label>
+          <label class="block text-xs">iPhone AR (.usdz)<input id="upload-usdz" type="file" accept=".usdz,model/vnd.usdz+zip" class="admin-input"></label>
+          <div id="upload-status" class="text-xs text-slate-400">Files are saved locally in this browser (IndexedDB). URL fields above are optional alternatives.</div>
+          <div id="upload-preview" class="space-y-2"></div>
+          <p class="text-xs text-amber-200">Local GLB preview works in compatible browsers. Camera AR often requires publicly hosted HTTPS model files, especially on iPhone. Use Export GitHub ZIP to include browser-uploaded media files.</p>
+        </div>
+        <div class="rounded-xl border border-amber-500/30 p-3 space-y-2">
+          <p class="font-semibold text-sm text-amber-400">Real-size 3D calibration</p>
+          <label class="block text-xs">Actual dish width / diameter (cm)<input id="edit-width" type="number" min="1" max="200" step="0.1" class="admin-input" placeholder="e.g. burger 12, pizza 30.5"></label>
+          <label class="block text-xs">Model axis representing this measurement
+            <select id="edit-axis" class="admin-input"><option value="maxXZ">Widest horizontal side (X or Z)</option><option value="x">X axis</option><option value="z">Z axis</option><option value="y">Y axis (height)</option></select>
+          </label>
+          <p class="text-xs text-slate-400">The viewer measures the loaded GLB and calculates a uniform scale (1 unit = 1 metre). The AR experience can vary by device and platform; verify against a ruler on a real table. iPhone USDZ must be separately exported at matching dimensions.</p>
+        </div>
+        <div class="flex gap-2"><button type="submit" class="bg-amber-500 text-slate-950 rounded-xl px-4 py-3 font-bold">Save dish</button><button type="button" onclick="document.getElementById('admin-form').classList.add('hidden')" class="bg-slate-700 rounded-xl px-4 py-3">Cancel</button></div>
+      </form>
+    </div>
+  </div>
+
+
+  <!-- Local demo kitchen; no server / multi-device synchronization -->
+  <div id="kitchen-modal" class="fixed inset-0 z-[70] bg-slate-950/95 hidden overflow-y-auto p-4">
+    <div class="max-w-3xl mx-auto space-y-4">
+      <div class="flex justify-between items-center"><div><h2 class="text-xl font-bold text-amber-400">Kitchen · Demo Orders</h2><p class="text-xs text-slate-400">Orders are stored only in this browser. Not a live kitchen connection.</p></div><button onclick="closeKitchen()" class="bg-slate-800 px-3 py-2 rounded-xl">Close ✕</button></div>
+      <div class="flex gap-2 flex-wrap"><button onclick="renderKitchen()" class="bg-slate-800 rounded-lg px-3 py-2 text-xs">Refresh</button><button onclick="exportOrders()" class="bg-slate-800 rounded-lg px-3 py-2 text-xs">Export orders JSON</button><button onclick="clearDemoOrders()" class="bg-red-900/50 rounded-lg px-3 py-2 text-xs">Clear demo orders</button></div>
+      <div id="kitchen-stats" class="text-sm text-amber-300"></div><div id="kitchen-list" class="space-y-3"></div>
+      <div class="border-t border-slate-700 pt-4"><h3 class="font-bold mb-2">Table QR Codes (10 tables)</h3><p class="text-xs text-slate-400 mb-3">For actual phone scanning, publish the website at an HTTPS URL. file:// QR links will not work on other devices.</p><div id="qr-table-list" class="grid grid-cols-2 sm:grid-cols-5 gap-3"></div></div>
+    </div>
+  </div>
+  <div id="order-confirm-modal" class="fixed inset-0 z-[65] bg-slate-950/95 hidden items-center justify-center p-4"><div class="bg-slate-900 border border-amber-500/30 rounded-2xl p-6 max-w-sm w-full text-center space-y-3"><i class="fa-solid fa-circle-check text-4xl text-amber-400"></i><h2 class="text-xl font-bold">Demo order saved!</h2><div id="order-confirm-details" class="text-sm text-slate-300"></div><p class="text-xs text-amber-300">This order is NOT sent to a real restaurant or another device.</p><button onclick="document.getElementById('order-confirm-modal').classList.add('hidden')" class="bg-amber-500 text-slate-950 rounded-xl px-5 py-3 font-bold">Done</button></div></div>
+
+  <!-- Success Toast Notification -->
+  <div id="toast-notification" class="fixed top-5 left-1/2 -translate-x-1/2 z-50 bg-amber-500 text-slate-950 px-4 py-3 rounded-2xl shadow-2xl font-bold text-xs flex items-center gap-2 transform -translate-y-20 opacity-0 transition-all duration-300">
+    <i class="fa-solid fa-circle-check text-base"></i>
+    <span id="toast-message">Item added to cart!</span>
+  </div>
+
+  <!-- JavaScript Logic -->
+  <script>
+    // Menu Data
+    const defaultMenuItems = [
+      {
+        id: "burger-01",
+        category: "Burger",
+        title: " Cheeseburger",
+        description: "Juicy beef patty topped with melted cheddar, organic lettuce, tomatoes, and house sauce.",
+        price: 850,
+
+        image: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=600&q=80",
+        modelUrl: ""
+      },
+      {
+        id: "pizza-01",
+        category: "Pizza",
+        title: "Italian Pepperoni Pizza",
+        description: "Fresh mozzarella cheese, pepperoni slices, and rich tomato basil sauce baked crisp.",
+        price: 1890,
+
+        image: "https://images.unsplash.com/photo-1513104890138-7c749659a591?auto=format&fit=crop&w=600&q=80",
+        modelUrl: ""
+      },
+      {
+        id: "dessert-01",
+        category: "Dessert",
+        title: "Chocolate Berry Cake",
+        description: "Rich dark chocolate layer cake topped with wild berries and sweet powdered glaze.",
+        price: 650,
+
+        image: "https://images.unsplash.com/photo-1551024709-8f23befc6f87?auto=format&fit=crop&w=600&q=80",
+        modelUrl: ""
+      },
+      {
+        id: "drink-01",
+        category: "Drinks",
+        title: "Fresh Lemon Mint Mojito",
+        description: "Sparkling soda mixed with fresh crushed mint leaves, lime juice, and cane sugar.",
+        price: 450,
+
+        image: "https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?auto=format&fit=crop&w=600&q=80",
+        modelUrl: ""
+      }
+    ];
+
+    const STORAGE_KEY = 'nosh_menu_pkr_v1';
+    const GITHUB_MENU_URL = './menu.json';
+    let menuItems;
+    try { const stored = JSON.parse(localStorage.getItem(STORAGE_KEY)); menuItems = Array.isArray(stored) ? stored : structuredClone(defaultMenuItems); }
+    catch { menuItems = structuredClone(defaultMenuItems); }
+    // Browser-only media storage: binary assets are stored as Blobs, not localStorage strings.
+    const MEDIA_DB = 'nosh_media_demo_v1';
+    let mediaDBPromise;
+    const mediaObjectUrls = new Map();
+    function openMediaDB() {
+      if (!mediaDBPromise) mediaDBPromise = new Promise((resolve,reject)=>{
+        const req=indexedDB.open(MEDIA_DB,1);
+        req.onupgradeneeded=()=>req.result.createObjectStore('files');
+        req.onsuccess=()=>resolve(req.result);
+        req.onerror=()=>reject(req.error);
+      });
+      return mediaDBPromise;
+    }
+    async function mediaOperation(mode, operation) {
+      const db=await openMediaDB();
+      return new Promise((resolve,reject)=>{
+        const tx=db.transaction('files',mode), store=tx.objectStore('files');
+        const req=operation(store); req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);
+      });
+    }
+    const getMedia = key => mediaOperation('readonly',s=>s.get(key));
+    const putMedia = (key,blob) => mediaOperation('readwrite',s=>s.put(blob,key));
+    const deleteMedia = key => mediaOperation('readwrite',s=>s.delete(key));
+    const mediaKey=(id,type)=>id+':'+type;
+    async function resolveMedia(item,type) {
+      const key=mediaKey(item.id,type);
+      const old=mediaObjectUrls.get(key);
+      if(old) { URL.revokeObjectURL(old);mediaObjectUrls.delete(key); }
+      if(!item.localMedia?.[type])return;
+      try {const blob=await getMedia(key);if(!blob)return;
+        const url=URL.createObjectURL(blob);mediaObjectUrls.set(key,url);
+      } catch(e) { console.warn('Could not read local media',e); }
+    }
+    function mediaUrl(item,type) {return mediaObjectUrls.get(mediaKey(item.id,type)) || safeUrl(type==='image'?item.image:type==='model'?item.modelUrl:item.usdzUrl);}
+    async function hydrateMedia(){await Promise.all(menuItems.flatMap(i=>['image','model','usdz'].map(t=>resolveMedia(i,t))));renderMenu();updateCartUI();renderAdminList();}
+    async function previewUploads(){
+      const area=document.getElementById('upload-preview');area.replaceChildren();
+      const img=document.getElementById('upload-image').files[0];
+      if(img){const el=document.createElement('img');el.src=URL.createObjectURL(img);el.className='w-32 h-24 object-cover rounded-xl';el.onload=()=>URL.revokeObjectURL(el.src);area.append(el);}
+      const glb=document.getElementById('upload-model').files[0];
+      if(glb){const viewer=document.createElement('model-viewer');viewer.src=URL.createObjectURL(glb);viewer.setAttribute('camera-controls','');viewer.style.height='220px';viewer.className='rounded-xl bg-slate-900';area.append(viewer);
+        const status=document.createElement('p');status.className='text-xs text-amber-300';area.append(status);
+        viewer.addEventListener('load',()=>calibrateViewer(viewer,{widthCm:document.getElementById('edit-width').value,widthAxis:document.getElementById('edit-axis').value},status));
+      }
+      const usdz=document.getElementById('upload-usdz').files[0];
+      if(usdz){const label=document.createElement('p');label.textContent='Selected USDZ: '+usdz.name;area.append(label);}
+    }
+    for(const type of ['image','model','usdz'])document.getElementById('upload-'+type).addEventListener('change',previewUploads);
+    const money = n => 'Rs. ' + Number(n || 0).toLocaleString('en-PK', {maximumFractionDigits:0});
+    const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const safeUrl = v => { try { if (!v) return ''; const u = new URL(v, location.href); return (u.protocol === 'https:' || (u.protocol === 'http:' && location.hostname === 'localhost') || (u.protocol === 'file:' && location.protocol === 'file:')) ? u.href : ''; } catch { return ''; } };
+    const categories = () => ['All Items', ...new Set(menuItems.map(i => i.category))];
+    const persist = () => { localStorage.setItem(STORAGE_KEY, JSON.stringify(menuItems)); renderCategories(); renderMenu(); updateCartUI(); renderAdminList(); };
+    let currentCategory = "All Items";
+    let cart = [];
+
+    // Filter Categories Render
+    function renderCategories() {
+      const container = document.getElementById('categories-bar');
+      container.innerHTML = categories().map((cat, idx) => `
+        <button 
+          onclick="filterCategoryByIndex(${idx})" 
+          class="px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition ${currentCategory === cat ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20' : 'bg-slate-900 border border-slate-800 text-slate-400 hover:bg-slate-800'}">
+          ${esc(cat)}
+        </button>
+      `).join('');
+    }
+
+    function filterCategoryByIndex(idx) {
+      const cat = categories()[idx];
+      currentCategory = cat;
+      renderCategories();
+      renderMenu();
+    }
+
+    // Render Menu Cards
+    function renderMenu() {
+      const container = document.getElementById('menu-container');
+      const filtered = currentCategory === "All Items" ? menuItems : menuItems.filter(i => i.category === currentCategory);
+
+      container.innerHTML = filtered.map(item => `
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden hover:border-slate-700 transition flex flex-col sm:flex-row">
+          <div class="relative h-44 sm:h-auto sm:w-2/5 overflow-hidden">
+            <img src="${esc(mediaUrl(item,'image'))}" alt="${esc(item.title)}" class="w-full h-full object-cover" />
+          </div>
+          <div class="p-4 sm:w-3/5 flex flex-col justify-between gap-3">
+            <div>
+              <div class="flex items-center justify-between">
+                <h3 class="font-bold text-white text-base">${esc(item.title)}</h3>
+                <span class="text-amber-400 font-bold text-base">${money(item.price)}</span>
+              </div>
+              <p class="text-xs text-slate-400 mt-1.5 line-clamp-2">${esc(item.description)}</p>
+            </div>
+            
+            <div class="flex items-center gap-2 pt-2">
+              <button onclick="openArModal('${item.id}')" class="flex-1 py-2.5 px-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 hover:bg-amber-500 hover:text-slate-950 transition text-xs font-semibold flex items-center justify-center gap-2">
+                <i class="fa-solid fa-cube text-amber-400"></i>
+                <span>3D / AR</span>
+              </button>
+              <button onclick="addToCart('${item.id}')" class="flex-1 py-2.5 px-3 rounded-xl bg-amber-500 text-slate-950 hover:bg-amber-400 transition text-xs font-bold flex items-center justify-center gap-2 shadow-md shadow-amber-500/10">
+                <i class="fa-solid fa-plus"></i>
+                <span>Add</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // Cart Management Logic
+    function addToCart(itemId) {
+      const item = menuItems.find(i => i.id === itemId);
+      if (!item) return;
+      const existing = cart.find(c => c.id === itemId);
+
+      if (existing) {
+        existing.quantity += 1;
+      } else {
+        cart.push({ ...item, quantity: 1 });
+      }
+
+      updateCartUI();
+      showToast(`Added ${esc(item.title)} to cart`);
+    }
+
+    function updateQuantity(itemId, delta) {
+      const index = cart.findIndex(c => c.id === itemId);
+      if (index > -1) {
+        cart[index].quantity += delta;
+        if (cart[index].quantity <= 0) {
+          cart.splice(index, 1);
+        }
+      }
+      updateCartUI();
+    }
+
+    function updateCartUI() {
+      const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
+      const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+      const tax = 0; // Demo only: confirm actual applicable taxes before going live.
+      const total = subtotal + tax;
+
+      // Badges & Floating Total
+      document.getElementById('cart-badge-header').textContent = cartCount;
+      document.getElementById('cart-badge-header').classList.toggle('hidden', cartCount === 0);
+      document.getElementById('cart-badge-floating').textContent = cartCount;
+      document.getElementById('floating-cart-total').textContent = money(total);
+
+      // Subtotals
+      document.getElementById('cart-subtotal').textContent = money(subtotal);
+      document.getElementById('cart-tax').textContent = money(tax);
+      document.getElementById('cart-total').textContent = money(total);
+      document.getElementById('checkout-total-val').textContent = money(total);
+
+      // Disable Checkout if empty
+      document.getElementById('checkout-btn').disabled = cart.length === 0;
+
+      // Drawer Item List
+      const cartContainer = document.getElementById('cart-items-list');
+      if (cart.length === 0) {
+        cartContainer.innerHTML = `
+          <div class="h-full flex flex-col items-center justify-center text-center text-slate-500 py-12">
+            <i class="fa-solid fa-basket-shopping text-4xl mb-3 text-slate-700"></i>
+            <p class="text-sm font-medium">Your basket is currently empty</p>
+          </div>
+        `;
+      } else {
+        cartContainer.innerHTML = cart.map(item => `
+          <div class="p-3 bg-slate-800/60 border border-slate-700/50 rounded-xl flex items-center justify-between gap-3">
+            <img src="${esc(mediaUrl(item,'image'))}" alt="${esc(item.title)}" class="w-12 h-12 rounded-lg object-cover" />
+            <div class="flex-1">
+              <h4 class="text-xs font-bold text-white leading-tight">${esc(item.title)}</h4>
+              <span class="text-xs text-amber-400 font-semibold">${money(item.price * item.quantity)}</span>
+            </div>
+            <div class="flex items-center gap-2 bg-slate-900 border border-slate-700 rounded-lg p-1">
+              <button onclick="updateQuantity('${item.id}', -1)" class="w-6 h-6 rounded bg-slate-800 text-slate-300 hover:text-white font-bold flex items-center justify-center text-xs">-</button>
+              <span class="text-xs font-bold text-white px-1">${item.quantity}</span>
+              <button onclick="updateQuantity('${item.id}', 1)" class="w-6 h-6 rounded bg-slate-800 text-slate-300 hover:text-white font-bold flex items-center justify-center text-xs">+</button>
+            </div>
+          </div>
+        `).join('');
+      }
+    }
+
+    // Toggle Cart Drawer
+    function toggleCartDrawer() {
+      const drawer = document.getElementById('cart-drawer');
+      const backdrop = document.getElementById('cart-drawer-backdrop');
+
+      const isOpen = !drawer.classList.contains('translate-x-full');
+
+      if (isOpen) {
+        drawer.classList.add('translate-x-full');
+        backdrop.classList.add('opacity-0');
+        setTimeout(() => backdrop.classList.add('hidden'), 300);
+      } else {
+        backdrop.classList.remove('hidden');
+        setTimeout(() => backdrop.classList.remove('opacity-0'), 10);
+        drawer.classList.remove('translate-x-full');
+      }
+    }
+
+    // Modal Control Logic
+    function openArModal(itemId) {
+      const item = menuItems.find(i => i.id === itemId);
+      if (!item) return;
+
+      const modal = document.getElementById('ar-modal');
+      const viewer = document.getElementById('food-viewer');
+
+      document.getElementById('modal-item-title').textContent = item.title;
+      document.getElementById('modal-item-price').textContent = `${money(item.price)}`;
+      
+      const addBtn = document.getElementById('modal-add-cart-btn');
+      addBtn.onclick = () => {
+        addToCart(item.id);
+        closeArModal();
+      };
+
+      const model = mediaUrl(item,'model');
+      viewer.setAttribute('src', model);
+      if (mediaUrl(item,'usdz')) viewer.setAttribute('ios-src', mediaUrl(item,'usdz'));
+      else viewer.removeAttribute('ios-src');
+      viewer.setAttribute('ar-scale', 'fixed');
+      viewer.scale='1 1 1';
+      viewer.addEventListener('load',()=>calibrateViewer(viewer,item,document.getElementById('ar-size-status')),{once:true});
+      // Check actual physical dimensions on the target device; Scene Viewer/Quick Look may differ.
+      const arBtn = viewer.querySelector('[slot="ar-button"]');
+      arBtn.style.display = model ? 'flex' : 'none';
+      if (!model) showToast('Add a real food GLB model in Admin to enable AR');
+      modal.classList.remove('hidden');
+      setTimeout(() => modal.classList.remove('opacity-0'), 10);
+    }
+
+    // Model Viewer dimensions are in metres. Apply uniform scaling to target physical size.
+    async function calibrateViewer(viewer,item,output) {
+      const width=Number(item.widthCm);
+      if(!Number.isFinite(width)||width<=0){viewer.scale='1 1 1';if(output)output.textContent='No size calibration set';return;}
+      try {
+        await viewer.updateComplete;
+        const d=viewer.getDimensions();
+        const axis=item.widthAxis||'maxXZ';
+        const dimension=axis==='x'?d.x:axis==='y'?d.y:axis==='z'?d.z:Math.max(d.x,d.z);
+        if(!Number.isFinite(dimension)||dimension<=0)throw Error('Model has invalid dimensions');
+        const factor=(width/100)/dimension;
+        viewer.scale=`${factor} ${factor} ${factor}`;
+        if(output)output.textContent=`GLB measured ${(dimension*100).toFixed(1)} cm → target ${width} cm (scale ×${factor.toFixed(3)}). Check AR on device.`;
+      } catch(e){viewer.scale='1 1 1';if(output)output.textContent='Could not measure GLB: '+e.message;}
+    }
+    function closeArModal() {
+      const modal = document.getElementById('ar-modal');
+      modal.classList.add('opacity-0');
+      setTimeout(() => {
+        modal.classList.add('hidden');
+        document.getElementById('food-viewer').setAttribute('src', '');
+      }, 300);
+    }
+
+    function openCheckoutModal() {
+      if (cart.length === 0) return;
+      toggleCartDrawer();
+      document.getElementById('checkout-modal').classList.remove('hidden');
+    }
+
+    function closeCheckoutModal() {
+      document.getElementById('checkout-modal').classList.add('hidden');
+    }
+
+    const ORDER_KEY='nosh_demo_orders_v1';
+    const STATUSES=['Received','Preparing','Ready','Served','Cancelled'];
+    function getOrders(){try {const x=JSON.parse(localStorage.getItem(ORDER_KEY)||'[]');return Array.isArray(x)?x:[]}catch{return []}}
+    function saveOrders(orders){localStorage.setItem(ORDER_KEY,JSON.stringify(orders));renderKitchen();}
+    function handlePlaceOrder(e) {
+      e.preventDefault();
+      if(!cart.length)return;
+      const name=document.getElementById('cust-name').value.trim();
+      const table=Number(document.getElementById('cust-table').value);
+      const payment=document.getElementById('cust-payment').value;
+      if(!name||!Number.isInteger(table)||table<1||table>10)return alert('Enter your name and select Table 01–10.');
+      const orders=getOrders();
+      const id='N-'+Date.now().toString(36).toUpperCase()+'-'+Math.random().toString(36).slice(2,5).toUpperCase();
+      const total=cart.reduce((sum,i)=>sum+i.price*i.quantity,0);
+      const order={id,createdAt:new Date().toISOString(),name,phone:document.getElementById('cust-phone').value.trim(),table,payment,status:'Received',items:cart.map(i=>({id:i.id,title:i.title,price:i.price,quantity:i.quantity})),total};
+      try {orders.unshift(order);saveOrders(orders)} catch(err){alert('Order could not be saved locally: '+err.message);return}
+      cart=[];updateCartUI();closeCheckoutModal();
+      document.getElementById('order-confirm-details').textContent=`Order ${id} · Table ${String(table).padStart(2,'0')} · ${money(total)} · ${payment} at Counter`;
+      document.getElementById('order-confirm-modal').classList.remove('hidden');
+      document.getElementById('order-form').reset();initializeTables();
+    }
+    function openKitchen(){document.getElementById('kitchen-modal').classList.remove('hidden');renderKitchen();renderTableQRs()}
+    function closeKitchen(){document.getElementById('kitchen-modal').classList.add('hidden')}
+    function changeOrderStatus(id,status){if(!STATUSES.includes(status))return;const orders=getOrders();const o=orders.find(x=>x.id===id);if(!o)return;o.status=status;saveOrders(orders)}
+    function renderKitchen(){
+      const orders=getOrders(), active=orders.filter(o=>!['Served','Cancelled'].includes(o.status));
+      const revenue=orders.filter(o=>o.status!=='Cancelled').reduce((n,o)=>n+o.total,0);
+      document.getElementById('kitchen-stats').textContent=`${orders.length} demo orders · ${active.length} active · ${money(revenue)} non-cancelled order value (not verified payments)`;
+      document.getElementById('kitchen-list').innerHTML=orders.length?orders.map(o=>`<div class="rounded-2xl border border-slate-700 bg-slate-900 p-4 space-y-2"><div class="flex flex-wrap justify-between gap-2"><div><b class="text-amber-400">${esc(o.id)}</b> · Table ${String(o.table).padStart(2,'0')}<p class="text-xs text-slate-400">${esc(o.name)} · ${esc(o.payment)} at Counter · ${new Date(o.createdAt).toLocaleString()}</p></div><b>${money(o.total)}</b></div><div class="text-sm">${o.items.map(i=>`${Number(i.quantity)} × ${esc(i.title)} — ${money(i.price*i.quantity)}`).join('<br>')}</div><div class="flex items-center gap-2"><label class="text-xs">Status</label><select class="admin-input !mt-0" onchange="changeOrderStatus('${esc(o.id)}',this.value)">${STATUSES.map(x=>`<option value="${x}" ${x===o.status?'selected':''}>${x}</option>`).join('')}</select></div></div>`).join(''):'<p class="text-slate-400 text-sm">No demo orders yet. Place an order from the customer menu.</p>';
+    }
+    function initializeTables(){const el=document.getElementById('cust-table');el.innerHTML='<option value="">Select table</option>'+Array.from({length:10},(_,i)=>`<option value="${i+1}">Table ${String(i+1).padStart(2,'0')}</option>`).join('');const t=Number(new URLSearchParams(location.search).get('table'));if(Number.isInteger(t)&&t>=1&&t<=10){el.value=String(t);el.disabled=true;}else el.disabled=false;}
+    function renderTableQRs(){const el=document.getElementById('qr-table-list');el.replaceChildren();for(let i=1;i<=10;i++){const wrap=document.createElement('div');wrap.className='bg-white text-slate-900 p-2 rounded-xl text-center';const label=document.createElement('div');label.textContent='Table '+String(i).padStart(2,'0');label.className='font-bold text-xs mb-2';const qr=document.createElement('div');qr.className='flex justify-center';wrap.append(label,qr);const url=new URL(location.href);url.searchParams.set('table',String(i).padStart(2,'0'));url.hash='';if(typeof QRCode!=='undefined'){new QRCode(qr,{text:url.href,width:110,height:110,correctLevel:QRCode.CorrectLevel.M})}else {const fallback=document.createElement('p');fallback.textContent='QR library unavailable';fallback.className='text-xs';qr.append(fallback)}el.append(wrap)}}
+    function exportOrders(){const blob=new Blob([JSON.stringify(getOrders(),null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='nosh-demo-orders.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2000)}
+    function clearDemoOrders(){if(confirm('Delete ALL demo orders stored in this browser?'))saveOrders([])}
+
+    function showToast(msg) {
+      const toast = document.getElementById('toast-notification');
+      document.getElementById('toast-message').textContent = msg;
+
+      toast.classList.remove('-translate-y-20', 'opacity-0');
+      toast.classList.add('translate-y-0', 'opacity-100');
+
+      setTimeout(() => {
+        toast.classList.remove('translate-y-0', 'opacity-100');
+        toast.classList.add('-translate-y-20', 'opacity-0');
+      }, 3000);
+    }
+
+    function openAdmin() { document.getElementById('admin-modal').classList.remove('hidden'); renderAdminList(); }
+    function closeAdmin() { document.getElementById('admin-modal').classList.add('hidden'); }
+    function renderAdminList() {
+      document.getElementById('admin-list').innerHTML = menuItems.map(i => `<div class="flex items-center justify-between gap-2 bg-slate-800 p-3 rounded-xl"><div class="min-w-0"><div class="font-semibold text-sm truncate">${esc(i.title)}</div><div class="text-xs text-amber-400">${money(i.price)} · ${esc(i.category)}</div></div><div class="flex gap-2"><button class="bg-slate-700 rounded-lg p-2 text-xs" onclick="editItem('${i.id}')">Edit</button><button class="bg-red-900/60 text-red-200 rounded-lg p-2 text-xs" onclick="deleteItem('${i.id}')">Delete</button></div></div>`).join('') || '<p class="text-sm text-slate-400">No dishes yet.</p>';
+    }
+    function newItem() { fillEditor(null); }
+    function editItem(id) { fillEditor(menuItems.find(i => i.id === id)); }
+    function fillEditor(i) {
+      document.getElementById('admin-form').classList.remove('hidden');
+      document.getElementById('editor-title').textContent = i ? 'Edit dish' : 'Add dish';
+      for (const [field, val] of Object.entries({id:i?.id||'',title:i?.title||'',category:i?.category||'',price:i?.price??'',description:i?.description||'',image:i?.image||'',model:i?.modelUrl||'',usdz:i?.usdzUrl||'',width:i?.widthCm||''})) document.getElementById('edit-'+field).value=val;
+      document.getElementById('edit-axis').value=i?.widthAxis||'maxXZ';
+      for(const type of ['image','model','usdz'])document.getElementById('upload-'+type).value='';
+      document.getElementById('upload-preview').replaceChildren();
+      document.getElementById('admin-form').scrollIntoView({behavior:'smooth',block:'start'});
+    }
+    async function saveItem(e) {
+      e.preventDefault();
+      const get = k => document.getElementById('edit-'+k).value.trim();
+      const id = get('id') || 'dish-'+crypto.randomUUID();
+      const price = Number(get('price'));
+      if (!Number.isFinite(price) || price < 0) return showToast('Enter a valid price');
+      const existing=menuItems.find(i=>i.id===id);
+      const item = {localMedia:{...(existing?.localMedia||{})},id,title:get('title'),category:get('category'),price,description:get('description'),image:safeUrl(get('image')),modelUrl:safeUrl(get('model')),usdzUrl:safeUrl(get('usdz')),widthCm:Number(get('width'))||null,widthAxis:document.getElementById('edit-axis').value};
+      const limits={image:15*1024*1024,model:100*1024*1024,usdz:100*1024*1024};
+      const files={};
+      for(const type of ['image','model','usdz']) {
+        const file=document.getElementById('upload-'+type).files[0];
+        if(!file)continue;
+        const valid=type==='image'?['image/jpeg','image/png','image/webp'].includes(file.type):file.name.toLowerCase().endsWith('.'+(type==='model'?'glb':'usdz'));
+        if(!valid || file.size>limits[type])return alert('Invalid or oversized '+type+' file');
+        files[type]=file;
+      }
+      try {
+        for(const [type,file] of Object.entries(files)){
+          await putMedia(mediaKey(id,type),file);item.localMedia[type]=true;
+          await resolveMedia(item,type);
+        }
+      }catch(err){return alert('Could not store file. Check browser storage space: '+err.message);}
+      const idx = menuItems.findIndex(i => i.id === id);
+      if (idx < 0) menuItems.push(item); else menuItems[idx] = item;
+      cart = cart.map(c => c.id === id ? {...item,quantity:c.quantity} : c);
+      document.getElementById('admin-form').classList.add('hidden'); persist(); showToast('Dish saved in this browser');
+    }
+    function deleteItem(id) {
+      if (!confirm('Delete this dish?')) return;
+      for(const type of ['image','model','usdz']){const key=mediaKey(id,type);const url=mediaObjectUrls.get(key);if(url)URL.revokeObjectURL(url);mediaObjectUrls.delete(key);deleteMedia(key).catch(console.warn);}
+      menuItems = menuItems.filter(i => i.id !== id); cart = cart.filter(i => i.id !== id);
+      if (currentCategory !== 'All Items' && !menuItems.some(i => i.category === currentCategory)) currentCategory='All Items';
+      persist(); showToast('Dish deleted');
+    }
+    function exportMenu() {
+      const blob = new Blob([JSON.stringify(menuItems.map(i=>({...i,localMedia:{}})),null,2)],{type:'application/json'});
+      const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='menu.json'; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+    }
+    async function exportSiteZip() {
+      if (typeof JSZip === 'undefined') return alert('ZIP library unavailable. Check internet connection and try again.');
+      const zip = new JSZip();
+      const exported=[];
+      const extension={image:'jpg',model:'glb',usdz:'usdz'};
+      for(const item of menuItems){
+        const copy={...item,localMedia:{}};
+        for(const type of ['image','model','usdz']){
+          if(!item.localMedia?.[type]) continue;
+          const blob=await getMedia(mediaKey(item.id,type));
+          if(!blob) { alert('Missing uploaded file for '+item.title+' ('+type+'). Export stopped.'); return; }
+          const ext=type==='image'?(blob.type==='image/png'?'png':blob.type==='image/webp'?'webp':'jpg'):extension[type];
+          const dir=type==='image'?'images':'models';
+          const filename=item.id+'-'+type+'.'+ext;
+          zip.file(dir+'/'+filename,blob);
+          const path='./'+dir+'/'+filename;
+          if(type==='image')copy.image=path;
+          if(type==='model')copy.modelUrl=path;
+          if(type==='usdz')copy.usdzUrl=path;
+        }
+        exported.push(copy);
+      }
+      zip.file('menu.json',JSON.stringify(exported,null,2));
+      // Export the current HTML without changing the user's browser-stored menu.
+      const html='<!DOCTYPE html>\n'+document.documentElement.outerHTML;
+      zip.file('index.html',html);
+      zip.file('README.txt','Nosh GitHub Pages export\nUpload index.html, menu.json, images/ and models/ to repository root.\nCommit changes and enable Settings > Pages > Deploy from branch.\nDemo orders and admin edits are local to each browser, not shared.\nPublic demo only: no secure login, no real kitchen sync.\n');
+      const file=await zip.generateAsync({type:'blob'});
+      const a=document.createElement('a');a.href=URL.createObjectURL(file);a.download='nosh-github-pages.zip';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),3000);
+      showToast('GitHub ZIP exported. Upload extracted files to GitHub.');
+    }
+    async function loadPublishedMenu() {
+      // Only read published menu if this browser has no local admin edits.
+      if(localStorage.getItem(STORAGE_KEY)!==null)return;
+      try {
+        const response=await fetch(GITHUB_MENU_URL,{cache:'no-store'});
+        if(!response.ok)throw Error('menu.json not found');
+        const data=await response.json();
+        if(!Array.isArray(data)||!data.every(i=>i && typeof i.id==='string' && typeof i.title==='string' && Number.isFinite(Number(i.price))))throw Error('Invalid menu.json');
+        menuItems=data.map(i=>({...i,price:Number(i.price)}));
+        renderCategories();renderMenu();updateCartUI();renderAdminList();
+      }catch(e){console.warn('Published menu unavailable; using built-in demo menu',e)}
+    }
+    async function importMenu(e) {
+      const file=e.target.files?.[0]; if(!file)return;
+      try { const data=JSON.parse(await file.text());
+        if(!Array.isArray(data) || data.length>1000 || !data.every(i=>i && typeof i.id==='string' && /^[a-zA-Z0-9-]+$/.test(i.id) && typeof i.title==='string' && typeof i.category==='string' && Number.isFinite(Number(i.price)))) throw Error('Invalid menu file');
+        if (!confirm('Replace the current menu with imported items?')) return;
+        menuItems=data.map(i=>({...i,price:Number(i.price),image:safeUrl(i.image),modelUrl:safeUrl(i.modelUrl),usdzUrl:safeUrl(i.usdzUrl)})); cart=[];currentCategory='All Items';persist();showToast('Menu imported');
+      } catch(err) {alert('Could not import: '+err.message);} finally {e.target.value='';}
+    }
+    // Init App
+    window.addEventListener('DOMContentLoaded', () => {
+      renderCategories();
+      renderMenu();
+      updateCartUI();
+      initializeTables();
+      loadPublishedMenu().then(()=>hydrateMedia()).catch(err=>console.warn('Media loading unavailable',err));
+    });
+  </script>
+</body>
+</html>

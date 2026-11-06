@@ -1,0 +1,46 @@
+[
+  {
+    "id": "burger-01",
+    "category": "Burger",
+    "title": "Cheeseburger",
+    "description": "Juicy beef patty with melted cheddar, lettuce, tomato and sauce.",
+    "price": 1250,
+    "image": "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=600&q=80",
+    "modelUrl": "./models/burger.glb",
+    "usdzUrl": "./models/burger.usdz",
+    "widthCm": 12,
+    "widthAxis": "maxXZ"
+  },
+  {
+    "id": "pizza-01",
+    "category": "Pizza",
+    "title": "Italian Pepperoni Pizza",
+    "description": "Fresh mozzarella, pepperoni and tomato sauce.",
+    "price": 1890,
+    "image": "https://images.unsplash.com/photo-1513104890138-7c749659a591?auto=format&fit=crop&w=600&q=80",
+    "modelUrl": "",
+    "usdzUrl": "",
+    "widthCm": 30.5,
+    "widthAxis": "maxXZ"
+  },
+  {
+    "id": "dessert-01",
+    "category": "Dessert",
+    "title": "Chocolate Berry Cake",
+    "description": "Chocolate cake topped with berries.",
+    "price": 650,
+    "image": "https://images.unsplash.com/photo-1551024709-8f23befc6f87?auto=format&fit=crop&w=600&q=80",
+    "modelUrl": "",
+    "usdzUrl": ""
+  },
+  {
+    "id": "drink-01",
+    "category": "Drinks",
+    "title": "Fresh Lemon Mint Mojito",
+    "description": "Fresh mint, lime and sparkling soda.",
+    "price": 450,
+    "image": "https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?auto=format&fit=crop&w=600&q=80",
+    "modelUrl": "",
+    "usdzUrl": ""
+  }
+]
