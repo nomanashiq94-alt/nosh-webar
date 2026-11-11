@@ -28,6 +28,7 @@
       height: 100%;
       --poster-color: transparent;
     }
+    #iphone-ar-link::after { content: "View on Table (AR)"; }
     .ar-button {
       background-color: #f59e0b;
       color: #0f172a;
@@ -160,6 +161,10 @@
           <span class="text-xs text-slate-400 font-medium">Loading AR Model...</span>
         </div>
       </model-viewer>
+      <a id="iphone-ar-link" rel="ar" class="ar-button no-underline whitespace-nowrap" style="display:none"
+         aria-label="View on Table on iPhone">
+        <img alt="" class="h-6 w-6 rounded object-cover">
+      </a>
       <div id="ar-size-status" class="absolute bottom-2 left-3 right-3 text-center text-xs text-amber-300 pointer-events-none"></div>
 
       <div class="absolute top-4 left-1/2 -translate-x-1/2 bg-slate-900/80 backdrop-blur-md border border-slate-700/50 px-3 py-1.5 rounded-full flex items-center gap-2 pointer-events-none">
@@ -460,6 +465,9 @@
     }
 
     // Modal Control Logic
+    let arLoad = null;
+    let arCloseTimer;
+
     function openArModal(itemId) {
       const item = resolveSize(menuItems.find(i => i.id === itemId), selectedSizes.get(itemId));
       if (!item) return;
@@ -477,6 +485,40 @@
       };
 
       const model = mediaUrl(item,'model');
+      const usdz = mediaUrl(item,'usdz');
+      const directLink = document.getElementById('iphone-ar-link');
+      const appleMobile = /iPad|iPhone|iPod/.test(navigator.userAgent)
+        || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+      const directAR = appleMobile && Boolean(usdz);
+      directLink.style.display = directAR ? 'flex' : 'none';
+      if (directAR) {
+        const url = new URL(usdz);
+        url.hash = 'allowsContentScaling=0';
+        directLink.href = url.href;
+        directLink.querySelector('img').src = mediaUrl(item,'image');
+      } else {
+        directLink.removeAttribute('href');
+      }
+
+      clearTimeout(arCloseTimer);
+      arLoad?.abort();
+      arLoad = new AbortController();
+      const status = document.getElementById('ar-size-status');
+      status.textContent = model ? 'Loading 3D preview…' : '3D preview unavailable for this dish.';
+      viewer.scale = '1 1 1';
+      const listener = {once:true, signal:arLoad.signal};
+      const onLoad = () => calibrateViewer(viewer,item,status);
+      if (model && viewer.loaded && viewer.getAttribute('src') === model) onLoad();
+      else if (model) viewer.addEventListener('load', onLoad, listener);
+      viewer.addEventListener('error', () => {
+        status.textContent = directAR ? '3D preview could not load. You can still open View on Table.'
+          : '3D model could not load. Check your connection and reopen the dish.';
+      }, listener);
+      viewer.addEventListener('ar-status', event => {
+        if (event.detail.status === 'failed') {
+          status.textContent = 'Camera AR could not start. Open the menu in Safari on iPhone or Chrome on an AR-capable Android phone.';
+        }
+      }, {signal:arLoad.signal});
       viewer.setAttribute('src', model);
       if (mediaUrl(item,'usdz')) viewer.setAttribute('ios-src', mediaUrl(item,'usdz'));
       else viewer.removeAttribute('ios-src');
@@ -484,11 +526,10 @@
         ? (item.usdzUrl ? 'webxr quick-look' : 'webxr')
         : 'webxr scene-viewer quick-look');
       viewer.setAttribute('ar-scale', 'fixed');
-      viewer.scale='1 1 1';
-      viewer.addEventListener('load',()=>calibrateViewer(viewer,item,document.getElementById('ar-size-status')),{once:true});
+
       // Check actual physical dimensions on the target device; Scene Viewer/Quick Look may differ.
       const arBtn = viewer.querySelector('[slot="ar-button"]');
-      arBtn.style.display = model ? 'flex' : 'none';
+      arBtn.style.display = model && !directAR ? 'flex' : 'none';
       if (!model) showToast('Add a real food GLB model in Admin to enable AR');
       modal.classList.remove('hidden');
       setTimeout(() => modal.classList.remove('opacity-0'), 10);
@@ -512,7 +553,8 @@
     function closeArModal() {
       const modal = document.getElementById('ar-modal');
       modal.classList.add('opacity-0');
-      setTimeout(() => {
+      arLoad?.abort();
+      arCloseTimer = setTimeout(() => {
         modal.classList.add('hidden');
         document.getElementById('food-viewer').setAttribute('src', '');
       }, 300);
