@@ -2,7 +2,7 @@ let menuDb = null, menuRequest = 0;
 function menuMessage(text){document.getElementById('menu-connection').textContent=text;}
 function paintMenu(){
   if(!categories().includes(currentCategory))currentCategory='All Items';
-  cart=cart.flatMap(c=>{const latest=menuItems.find(i=>i.id===c.id&&i.available);return latest?[{...latest,quantity:c.quantity}]:[];});
+  cart=cart.flatMap(c=>{const latest=resolveSize(menuItems.find(i=>i.id===c.id), c.size);return latest?[{...latest,quantity:c.quantity}]:[];});
   renderCategories();renderMenu();updateCartUI();
   if(!menuItems.some(i=>i.available))document.getElementById('menu-container').textContent=menuReady?'No dishes available right now.':'Loading menu…';
 }

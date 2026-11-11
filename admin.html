@@ -80,7 +80,12 @@
         <input type="hidden" id="edit-id">
         <label class="block text-xs">Dish name<input id="edit-title" required maxlength="100" class="admin-input" placeholder="Chicken Burger"></label>
         <label class="block text-xs">Category<input id="edit-category" required maxlength="50" class="admin-input" placeholder="Burgers"></label>
-        <label class="block text-xs">Price (PKR)<input id="edit-price" type="number" required min="0" step="1" class="admin-input" placeholder="850"></label>
+        <label class="block text-xs">Single-size price (PKR)<input id="edit-price" type="number" min="0" max="999999" step="0.01" class="admin-input" placeholder="850"></label>
+        <fieldset class="rounded-xl border border-slate-700 p-3">
+          <legend class="px-1 text-sm font-semibold text-amber-400">Size options</legend>
+          <p class="mb-3 text-xs text-slate-400">Enter a price for each size you sell. Leave a size price blank to hide that option. If all size prices are blank, the dish uses the single-size price.</p>
+          <div id="size-fields" class="grid gap-3 sm:grid-cols-3"></div>
+        </fieldset>
         <label class="flex gap-2 text-sm items-center"><input id="edit-available" type="checkbox" checked> Available to order</label>
         <label class="block text-xs">Description<textarea id="edit-description" maxlength="500" class="admin-input" rows="2"></textarea></label>
 
