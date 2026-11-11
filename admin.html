@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-slate-900 text-slate-100">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nosh Menu Admin</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Google Fonts (Inter) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Google Model Viewer Script for WebAR -->
+  <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
+
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+    model-viewer {
+      width: 100%;
+      height: 100%;
+      --poster-color: transparent;
+    }
+    .ar-button {
+      background-color: #f59e0b;
+      color: #0f172a;
+      border-radius: 9999px;
+      padding: 12px 24px;
+      font-weight: 700;
+      box-shadow: 0 10px 25px -5px rgba(245, 158, 11, 0.4);
+      position: absolute;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      border: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      z-index: 99;
+    }
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 4px;
+      height: 4px;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 4px;
+    }
+    .admin-input { display:block; width:100%; margin-top:5px; padding:10px; border-radius:10px; background:#1e293b; border:1px solid #475569; color:white; }
+  </style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js"></script>
+<script src="nosh-cloud.js"></script>
+</head>
+<body class="min-h-screen bg-slate-950">
+  <!-- Secured cloud menu admin -->
+  <main class="p-4 sm:p-8">
+    <div class="max-w-2xl mx-auto bg-slate-900 border border-slate-700 rounded-2xl p-5 space-y-4">
+      <h1 class="text-2xl font-bold text-amber-400">Nosh Menu Admin</h1>
+      <p class="text-xs text-slate-400">Save publishes changes to the shared menu. Customers receive updates automatically.</p>
+      <p id="admin-message" class="text-xs text-amber-300" role="status">Sign in to edit the shared menu.</p>
+      <form id="admin-login" onsubmit="signInAdmin(event)" class="space-y-3">
+        <label class="block text-sm">Admin email<input id="admin-email" type="email" required autocomplete="username" class="admin-input"></label>
+        <label class="block text-sm">Password<input id="admin-password" type="password" required autocomplete="current-password" class="admin-input"></label>
+        <button type="submit" class="bg-amber-500 text-black px-4 py-2 rounded-xl font-bold">Sign in</button>
+      </form>
+      <button id="admin-logout" onclick="signOutAdmin()" class="hidden text-xs underline">Sign out</button>
+      <div id="admin-tools" class="hidden flex gap-2 flex-wrap"><button onclick="newItem()" class="bg-amber-500 text-slate-950 rounded-lg px-3 py-2 font-bold text-xs">+ New Dish</button><button onclick="exportMenu()" class="bg-slate-700 rounded-lg px-3 py-2 text-xs">Export JSON</button></div>
+      <div id="admin-list" class="space-y-2"></div>
+      <form id="admin-form" onsubmit="saveItem(event)" class="hidden space-y-3 border-t border-slate-700 pt-4">
+        <h3 id="editor-title" class="font-bold">Dish editor</h3>
+        <input type="hidden" id="edit-id">
+        <label class="block text-xs">Dish name<input id="edit-title" required maxlength="100" class="admin-input" placeholder="Chicken Burger"></label>
+        <label class="block text-xs">Category<input id="edit-category" required maxlength="50" class="admin-input" placeholder="Burgers"></label>
+        <label class="block text-xs">Price (PKR)<input id="edit-price" type="number" required min="0" step="1" class="admin-input" placeholder="850"></label>
+        <label class="flex gap-2 text-sm items-center"><input id="edit-available" type="checkbox" checked> Available to order</label>
+        <label class="block text-xs">Description<textarea id="edit-description" maxlength="500" class="admin-input" rows="2"></textarea></label>
+
+        <label class="block text-xs">Photo URL (HTTPS)<input id="edit-image" type="url" class="admin-input" placeholder="https://..."></label>
+        <label class="block text-xs">3D model GLB URL (HTTPS)<input id="edit-model" type="url" class="admin-input" placeholder="https://.../burger.glb"></label>
+        <label class="block text-xs">iPhone AR USDZ URL (optional)<input id="edit-usdz" type="url" class="admin-input" placeholder="https://.../burger.usdz"></label>
+        <div class="rounded-xl border border-amber-500/30 bg-slate-800/60 p-3 space-y-3">
+          <p class="font-semibold text-sm text-amber-400">Upload files directly from your PC</p>
+          <label class="block text-xs">Food photo (JPG / PNG / WebP)<input id="upload-image" type="file" accept="image/jpeg,image/png,image/webp" class="admin-input"></label>
+          <label class="block text-xs">3D model (.glb)<input id="upload-model" type="file" accept=".glb,model/gltf-binary" class="admin-input"></label>
+          <label class="block text-xs">iPhone AR (.usdz)<input id="upload-usdz" type="file" accept=".usdz,model/vnd.usdz+zip" class="admin-input"></label>
+          <div id="upload-status" class="text-xs text-slate-400">Files upload to shared cloud storage when you save. Photo limit 15 MB; GLB / USDZ limit 50 MB per file.</div>
+          <div id="upload-preview" class="space-y-2"></div>
+          <p class="text-xs text-amber-200">Uploaded media receives an HTTPS URL for all customers. GLB and USDZ must both be exported at matching real dimensions.</p>
+        </div>
+        <div class="rounded-xl border border-amber-500/30 p-3 space-y-2">
+          <p class="font-semibold text-sm text-amber-400">Real-size 3D calibration</p>
+          <label class="block text-xs">Actual dish width / diameter (cm)<input id="edit-width" type="number" min="1" max="200" step="0.1" class="admin-input" placeholder="e.g. burger 12, pizza 30.5"></label>
+          <label class="block text-xs">Model axis representing this measurement
+            <select id="edit-axis" class="admin-input"><option value="maxXZ">Widest horizontal side (X or Z)</option><option value="x">X axis</option><option value="z">Z axis</option><option value="y">Y axis (height)</option></select>
+          </label>
+          <p class="text-xs text-slate-400">The viewer measures the loaded GLB and calculates a uniform scale (1 unit = 1 metre). The AR experience can vary by device and platform; verify against a ruler on a real table. iPhone USDZ must be separately exported at matching dimensions.</p>
+        </div>
+        <div class="flex gap-2"><button type="submit" class="bg-amber-500 text-slate-950 rounded-xl px-4 py-3 font-bold">Save dish</button><button type="button" onclick="document.getElementById('admin-form').classList.add('hidden')" class="bg-slate-700 rounded-xl px-4 py-3">Cancel</button></div>
+      </form>
+    </div>
+  </main>
+  <!-- Success Toast Notification -->
+  <div id="toast-notification" class="fixed top-5 left-1/2 -translate-x-1/2 z-50 bg-amber-500 text-slate-950 px-4 py-3 rounded-2xl shadow-2xl font-bold text-xs flex items-center gap-2 transform -translate-y-20 opacity-0 transition-all duration-300">
+    <i class="fa-solid fa-circle-check text-base"></i>
+    <span id="toast-message">Item added to cart!</span>
+  </div>
+
+  <script src="admin.js"></script>
+</body>
+</html>

@@ -7,7 +7,6 @@
   
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   
   <!-- Google Fonts (Inter) -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -55,7 +54,6 @@
       background: #334155;
       border-radius: 4px;
     }
-    .admin-input { display:block; width:100%; margin-top:5px; padding:10px; border-radius:10px; background:#1e293b; border:1px solid #475569; color:white; }
   </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase-config.js"></script>
@@ -76,8 +74,6 @@
         </div>
       </div>
 
-      <button onclick="openKitchen()" class="text-xs px-3 py-2 rounded-xl border border-slate-700 text-amber-400"><i class="fa-solid fa-bell-concierge"></i> Kitchen</button>
-      <button onclick="openAdmin()" class="text-xs px-3 py-2 rounded-xl border border-slate-700 text-amber-400"><i class="fa-solid fa-gear"></i> Admin</button>
        <!-- Header Cart Icon -->
       <button onclick="toggleCartDrawer()" class="relative p-2.5 rounded-xl bg-slate-800 border border-slate-700 text-slate-300 hover:text-white transition">
         <i class="fa-solid fa-basket-shopping text-base"></i>
@@ -269,55 +265,6 @@
   </div>
 
 
-  <!-- Secured cloud menu admin -->
-  <div id="admin-modal" class="fixed inset-0 z-[60] bg-slate-950/95 hidden overflow-y-auto p-4">
-    <div class="max-w-lg mx-auto bg-slate-900 border border-slate-700 rounded-2xl p-5 space-y-4">
-      <div class="flex justify-between items-center"><h2 class="text-xl font-bold text-amber-400">Menu Admin</h2><button onclick="closeAdmin()" aria-label="Close admin">✕</button></div>
-      <p class="text-xs text-slate-400">Save publishes changes to the shared menu. Customers receive updates automatically.</p>
-      <p id="admin-message" class="text-xs text-amber-300" role="status">Sign in to edit the shared menu.</p>
-      <form id="admin-login" onsubmit="signInAdmin(event)" class="space-y-3">
-        <label class="block text-sm">Admin email<input id="admin-email" type="email" required autocomplete="username" class="admin-input"></label>
-        <label class="block text-sm">Password<input id="admin-password" type="password" required autocomplete="current-password" class="admin-input"></label>
-        <button type="submit" class="bg-amber-500 text-black px-4 py-2 rounded-xl font-bold">Sign in</button>
-      </form>
-      <button id="admin-logout" onclick="signOutAdmin()" class="hidden text-xs underline">Sign out</button>
-      <div id="admin-tools" class="hidden flex gap-2 flex-wrap"><button onclick="newItem()" class="bg-amber-500 text-slate-950 rounded-lg px-3 py-2 font-bold text-xs">+ New Dish</button><button onclick="exportMenu()" class="bg-slate-700 rounded-lg px-3 py-2 text-xs">Export JSON</button></div>
-      <div id="admin-list" class="space-y-2"></div>
-      <form id="admin-form" onsubmit="saveItem(event)" class="hidden space-y-3 border-t border-slate-700 pt-4">
-        <h3 id="editor-title" class="font-bold">Dish editor</h3>
-        <input type="hidden" id="edit-id">
-        <label class="block text-xs">Dish name<input id="edit-title" required maxlength="100" class="admin-input" placeholder="Chicken Burger"></label>
-        <label class="block text-xs">Category<input id="edit-category" required maxlength="50" class="admin-input" placeholder="Burgers"></label>
-        <label class="block text-xs">Price (PKR)<input id="edit-price" type="number" required min="0" step="1" class="admin-input" placeholder="850"></label>
-        <label class="flex gap-2 text-sm items-center"><input id="edit-available" type="checkbox" checked> Available to order</label>
-        <label class="block text-xs">Description<textarea id="edit-description" maxlength="500" class="admin-input" rows="2"></textarea></label>
-
-        <label class="block text-xs">Photo URL (HTTPS)<input id="edit-image" type="url" class="admin-input" placeholder="https://..."></label>
-        <label class="block text-xs">3D model GLB URL (HTTPS)<input id="edit-model" type="url" class="admin-input" placeholder="https://.../burger.glb"></label>
-        <label class="block text-xs">iPhone AR USDZ URL (optional)<input id="edit-usdz" type="url" class="admin-input" placeholder="https://.../burger.usdz"></label>
-        <div class="rounded-xl border border-amber-500/30 bg-slate-800/60 p-3 space-y-3">
-          <p class="font-semibold text-sm text-amber-400">Upload files directly from your PC</p>
-          <label class="block text-xs">Food photo (JPG / PNG / WebP)<input id="upload-image" type="file" accept="image/jpeg,image/png,image/webp" class="admin-input"></label>
-          <label class="block text-xs">3D model (.glb)<input id="upload-model" type="file" accept=".glb,model/gltf-binary" class="admin-input"></label>
-          <label class="block text-xs">iPhone AR (.usdz)<input id="upload-usdz" type="file" accept=".usdz,model/vnd.usdz+zip" class="admin-input"></label>
-          <div id="upload-status" class="text-xs text-slate-400">Files upload to shared cloud storage when you save. Photo limit 15 MB; GLB / USDZ limit 50 MB per file.</div>
-          <div id="upload-preview" class="space-y-2"></div>
-          <p class="text-xs text-amber-200">Uploaded media receives an HTTPS URL for all customers. GLB and USDZ must both be exported at matching real dimensions.</p>
-        </div>
-        <div class="rounded-xl border border-amber-500/30 p-3 space-y-2">
-          <p class="font-semibold text-sm text-amber-400">Real-size 3D calibration</p>
-          <label class="block text-xs">Actual dish width / diameter (cm)<input id="edit-width" type="number" min="1" max="200" step="0.1" class="admin-input" placeholder="e.g. burger 12, pizza 30.5"></label>
-          <label class="block text-xs">Model axis representing this measurement
-            <select id="edit-axis" class="admin-input"><option value="maxXZ">Widest horizontal side (X or Z)</option><option value="x">X axis</option><option value="z">Z axis</option><option value="y">Y axis (height)</option></select>
-          </label>
-          <p class="text-xs text-slate-400">The viewer measures the loaded GLB and calculates a uniform scale (1 unit = 1 metre). The AR experience can vary by device and platform; verify against a ruler on a real table. iPhone USDZ must be separately exported at matching dimensions.</p>
-        </div>
-        <div class="flex gap-2"><button type="submit" class="bg-amber-500 text-slate-950 rounded-xl px-4 py-3 font-bold">Save dish</button><button type="button" onclick="document.getElementById('admin-form').classList.add('hidden')" class="bg-slate-700 rounded-xl px-4 py-3">Cancel</button></div>
-      </form>
-    </div>
-  </div>
-
-
   <div id="order-confirm-modal" class="fixed inset-0 z-[65] bg-slate-950/95 hidden items-center justify-center p-4"><div class="bg-slate-900 border border-amber-500/30 rounded-2xl p-6 max-w-sm w-full text-center space-y-3"><i class="fa-solid fa-circle-check text-4xl text-amber-400"></i><h2 class="text-xl font-bold">Order received!</h2><div id="order-confirm-details" class="text-sm text-slate-300"></div><p class="text-xs text-amber-300">Your order has been saved to the restaurant kitchen. Payment is due at the counter.</p><button onclick="document.getElementById('order-confirm-modal').classList.add('hidden')" class="bg-amber-500 text-slate-950 rounded-xl px-5 py-3 font-bold">Done</button></div></div>
 
   <!-- Success Toast Notification -->
@@ -331,19 +278,6 @@
     // Menu Data
     let menuItems=[], menuReady=false;
     function mediaUrl(item,type){return safeUrl(type==='image'?item.image:type==='model'?item.modelUrl:item.usdzUrl);}
-    async function previewUploads(){
-      const area=document.getElementById('upload-preview');area.replaceChildren();
-      const img=document.getElementById('upload-image').files[0];
-      if(img){const el=document.createElement('img');el.src=URL.createObjectURL(img);el.className='w-32 h-24 object-cover rounded-xl';el.onload=()=>URL.revokeObjectURL(el.src);area.append(el);}
-      const glb=document.getElementById('upload-model').files[0];
-      if(glb){const viewer=document.createElement('model-viewer');viewer.src=URL.createObjectURL(glb);viewer.setAttribute('camera-controls','');viewer.style.height='220px';viewer.className='rounded-xl bg-slate-900';area.append(viewer);
-        const status=document.createElement('p');status.className='text-xs text-amber-300';area.append(status);
-        viewer.addEventListener('load',()=>calibrateViewer(viewer,{widthCm:document.getElementById('edit-width').value,widthAxis:document.getElementById('edit-axis').value},status));
-      }
-      const usdz=document.getElementById('upload-usdz').files[0];
-      if(usdz){const label=document.createElement('p');label.textContent='Selected USDZ: '+usdz.name;area.append(label);}
-    }
-    for(const type of ['image','model','usdz'])document.getElementById('upload-'+type).addEventListener('change',previewUploads);
     const money = n => 'Rs. ' + Number(n || 0).toLocaleString('en-PK', {maximumFractionDigits:0});
     const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     const safeUrl = v => { try { const u = new URL(v); return u.protocol === 'https:' ? u.href : ''; } catch { return ''; } };
@@ -603,9 +537,7 @@
         placingOrder=false;button.disabled=false;button.textContent=label;
       }
     }
-    function openKitchen(){window.location.href='kitchen.html'}
     function initializeTables(){const el=document.getElementById('cust-table');el.innerHTML='<option value="">Select table</option>'+Array.from({length:10},(_,i)=>`<option value="${i+1}">Table ${String(i+1).padStart(2,'0')}</option>`).join('');const t=Number(new URLSearchParams(location.search).get('table'));if(Number.isInteger(t)&&t>=1&&t<=10){el.value=String(t);el.disabled=true;}else el.disabled=false;}
-    function renderTableQRs(){const el=document.getElementById('qr-table-list');el.replaceChildren();for(let i=1;i<=10;i++){const wrap=document.createElement('div');wrap.className='bg-white text-slate-900 p-2 rounded-xl text-center';const label=document.createElement('div');label.textContent='Table '+String(i).padStart(2,'0');label.className='font-bold text-xs mb-2';const qr=document.createElement('div');qr.className='flex justify-center';wrap.append(label,qr);const url=new URL(location.href);url.searchParams.set('table',String(i).padStart(2,'0'));url.hash='';if(typeof QRCode!=='undefined'){new QRCode(qr,{text:url.href,width:110,height:110,correctLevel:QRCode.CorrectLevel.M})}else {const fallback=document.createElement('p');fallback.textContent='QR library unavailable';fallback.className='text-xs';qr.append(fallback)}el.append(wrap)}}
     function showToast(msg) {
       const toast = document.getElementById('toast-notification');
       document.getElementById('toast-message').textContent = msg;
@@ -619,23 +551,6 @@
       }, 3000);
     }
 
-    function newItem() { fillEditor(null); }
-    function editItem(id) { fillEditor(menuItems.find(i => i.id === id)); }
-    function fillEditor(i) {
-      if(!adminAuthorized)return adminMessage('Admin login required.');
-      document.getElementById('admin-form').classList.remove('hidden');
-      document.getElementById('editor-title').textContent = i ? 'Edit dish' : 'Add dish';
-      for (const [field, val] of Object.entries({id:i?.id||'',title:i?.title||'',category:i?.category||'',price:i?.price??'',description:i?.description||'',image:i?.image||'',model:i?.modelUrl||'',usdz:i?.usdzUrl||'',width:i?.widthCm||''})) document.getElementById('edit-'+field).value=val;
-      document.getElementById('edit-axis').value=i?.widthAxis||'maxXZ';
-      document.getElementById('edit-available').checked=i?.available??true;
-      for(const type of ['image','model','usdz'])document.getElementById('upload-'+type).value='';
-      document.getElementById('upload-preview').replaceChildren();
-      document.getElementById('admin-form').scrollIntoView({behavior:'smooth',block:'start'});
-    }
-    function exportMenu() {
-      const blob = new Blob([JSON.stringify(menuItems,null,2)],{type:'application/json'});
-      const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='nosh-menu.json'; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000);
-    }
     // Init App
     window.addEventListener('DOMContentLoaded', () => {
       renderCategories();
