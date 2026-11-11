@@ -1,32 +1,8 @@
-const sizeLabels = {small: 'Small', medium: 'Medium', large: 'Large'};
-
-document.getElementById('size-fields').innerHTML = Object.entries(sizeLabels).map(([key, label]) => `
-  <div class="space-y-2">
-    <p class="text-sm font-semibold">${label}</p>
-    <label class="block text-xs">Price (PKR)<input id="size-${key}-price" class="admin-input" type="number" min="0" max="999999" step="0.01"></label>
-    <label class="block text-xs">Diameter (cm)<input id="size-${key}-width" class="admin-input" type="number" min="1" max="200" step="0.1"></label>
-    <label class="block text-xs">iPhone AR URL (optional)<input id="size-${key}-usdz" class="admin-input" type="url" placeholder="https://…"></label>
-  </div>
-`).join('');
-
-function readSizeOptions() {
-  const sizes = {};
-  for (const key of Object.keys(sizeLabels)) {
-    const price = document.getElementById('size-' + key + '-price').value;
-    if (price === '') continue;
-    const width = document.getElementById('size-' + key + '-width').value;
-    const usdz = document.getElementById('size-' + key + '-usdz').value.trim();
-    if (usdz && !safeUrl(usdz)) throw Error('Use an HTTPS iPhone AR URL for ' + sizeLabels[key] + '.');
-    sizes[key] = {price: Number(price)};
-    if (width) sizes[key].widthCm = Number(width);
-    if (usdz) sizes[key].usdzUrl = safeUrl(usdz);
-  }
-  return sizes;
-}
-
 let adminDb = null;
 let adminAuthorized = false;
 let adminEpoch = 0;
+let adminUserId = null;
+let adminCheckingAccess = false;
 let menuItems = [];
 
 function adminMessage(text) {
@@ -43,7 +19,7 @@ async function loadMenu() {
   renderAdminList();
 }
 
-    const money = n => 'Rs. ' + Number(n || 0).toLocaleString('en-PK', {maximumFractionDigits:2});
+    const money = n => 'Rs. ' + Number(n || 0).toLocaleString('en-PK', {maximumFractionDigits:0});
     const safeUrl = v => { try { const u = new URL(v); return u.protocol === 'https:' ? u.href : ''; } catch { return ''; } };
     // Model Viewer dimensions are in metres. Apply uniform scaling to target physical size.
     async function calibrateViewer(viewer,item,output) {
@@ -94,12 +70,6 @@ async function loadMenu() {
       document.getElementById('editor-title').textContent = i ? 'Edit dish' : 'Add dish';
       for (const [field, val] of Object.entries({id:i?.id||'',title:i?.title||'',category:i?.category||'',price:i?.price??'',description:i?.description||'',image:i?.image||'',model:i?.modelUrl||'',usdz:i?.usdzUrl||'',width:i?.widthCm||''})) document.getElementById('edit-'+field).value=val;
       document.getElementById('edit-axis').value=i?.widthAxis||'maxXZ';
-      for (const key of Object.keys(sizeLabels)) {
-        const option = i?.sizes?.[key];
-        document.getElementById('size-' + key + '-price').value = option?.price ?? '';
-        document.getElementById('size-' + key + '-width').value = option?.widthCm ?? '';
-        document.getElementById('size-' + key + '-usdz').value = option?.usdzUrl ?? '';
-      }
       document.getElementById('edit-available').checked=i?.available??true;
       for(const type of ['image','model','usdz'])document.getElementById('upload-'+type).value='';
       document.getElementById('upload-preview').replaceChildren();
@@ -110,18 +80,30 @@ async function loadMenu() {
       const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='nosh-menu.json'; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000);
     }
 async function adminSession(session){
-  const epoch=++adminEpoch;adminAuthorized=false;
+  const userId = session?.user.id ?? null;
+  if (userId && userId === adminUserId && (adminAuthorized || adminCheckingAccess)) return;
+
+  const epoch = ++adminEpoch;
+  adminUserId = userId;
+  adminAuthorized = false;
+  adminCheckingAccess = !!userId;
   document.getElementById('admin-form').classList.add('hidden');
   document.getElementById('admin-login').classList.toggle('hidden',!!session);
   document.getElementById('admin-logout').classList.toggle('hidden',!session);
   document.getElementById('admin-tools').classList.add('hidden');renderAdminList();
   if(!session){adminMessage('Sign in to edit the shared menu.');return;}
-  const {data,error}=await adminDb.from('menu_admins').select('user_id').eq('user_id',session.user.id).maybeSingle();
-  if(epoch!==adminEpoch)return;
-  if(error||!data){adminMessage('This account has no menu admin access. Add its UID to menu_admins.');return;}
-  adminAuthorized=true;document.getElementById('admin-tools').classList.remove('hidden');
-  adminMessage('Admin connected · Save publishes changes to all customers.');
-  await loadMenu();
+  try {
+    const {data,error}=await adminDb.from('menu_admins').select('user_id').eq('user_id',userId).maybeSingle();
+    if(epoch!==adminEpoch)return;
+    if(error||!data){adminMessage('This account has no menu admin access. Add its UID to menu_admins.');return;}
+    adminAuthorized=true;document.getElementById('admin-tools').classList.remove('hidden');
+    adminMessage('Admin connected · Save publishes changes to all customers.');
+    await loadMenu();
+  } catch (error) {
+    if (epoch === adminEpoch) adminMessage(error.message);
+  } finally {
+    if (epoch === adminEpoch) adminCheckingAccess = false;
+  }
 }
 async function signInAdmin(event){
   event.preventDefault();if(!adminDb)return adminMessage('Database unavailable. Check setup.');
@@ -143,7 +125,7 @@ function renderAdminList(){
     const row=document.createElement('div');row.className='flex items-center justify-between gap-2 bg-slate-800 p-3 rounded-xl';
     const info=document.createElement('div');info.className='min-w-0';
     const title=document.createElement('div');title.className='font-semibold text-sm truncate';title.textContent=item.title;
-    const summary=document.createElement('div');summary.className='text-xs text-amber-400';summary.textContent=(Object.keys(item.sizes || {}).length ? 'From ' + money(Math.min(...Object.values(item.sizes).map(size => size.price))) : money(item.price))+' · '+item.category+' · '+(item.available?'Available':'Unavailable');
+    const summary=document.createElement('div');summary.className='text-xs text-amber-400';summary.textContent=money(item.price)+' · '+item.category+' · '+(item.available?'Available':'Unavailable');
     info.append(title,summary);
     const actions=document.createElement('div');actions.className='flex gap-2';
     const edit=document.createElement('button');edit.className='bg-slate-700 rounded-lg p-2 text-xs';edit.textContent='Edit';edit.onclick=()=>editItem(item.id);
@@ -154,15 +136,10 @@ function renderAdminList(){
 async function saveItem(e){
   e.preventDefault();if(!adminAuthorized)return adminMessage('Admin login required.');
   const get=k=>document.getElementById('edit-'+k).value.trim();
-  let sizes;
-  try { sizes = readSizeOptions(); }
-  catch (error) { return alert(error.message); }
-  const firstSize = Object.values(sizes)[0];
-  if (!firstSize && get('price') === '') return alert('Enter a single-size price or at least one size price.');
-  const id=get('id')||'dish-'+crypto.randomUUID(),price=firstSize?.price ?? Number(get('price')),width=Number(get('width'))||null;
+  const id=get('id')||'dish-'+crypto.randomUUID(),price=Number(get('price')),width=Number(get('width'))||null;
   if(!get('title')||!get('category')||!Number.isFinite(price)||price<0||price>999999)
     return alert('Enter a dish name, category and valid price (0–999999).');
-  const item={id,title:get('title'),category:get('category'),price,sizes,description:get('description'),
+  const item={id,title:get('title'),category:get('category'),price,description:get('description'),
     image:safeUrl(get('image')),modelUrl:safeUrl(get('model')),usdzUrl:safeUrl(get('usdz')),
     widthCm:width,widthAxis:document.getElementById('edit-axis').value,
     available:document.getElementById('edit-available').checked,
