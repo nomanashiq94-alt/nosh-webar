@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Gourmet WebAR Menu & Order App</title>
   
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -58,6 +57,9 @@
     }
     .admin-input { display:block; width:100%; margin-top:5px; padding:10px; border-radius:10px; background:#1e293b; border:1px solid #475569; color:white; }
   </style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js"></script>
+<script src="nosh-cloud.js"></script>
 </head>
 <body class="min-h-screen flex flex-col bg-slate-950 pb-20 sm:pb-0">
 
@@ -84,6 +86,7 @@
     </div>
   </header>
 
+  <p id="menu-connection" role="status" class="max-w-md mx-auto px-4 pt-3 text-xs text-slate-400 w-full">Connecting menu…</p>
   <!-- Banner / AR Helper Info -->
   <div class="max-w-md mx-auto px-4 pt-4 w-full">
     <div class="p-3.5 rounded-2xl bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-amber-500/5 border border-amber-500/20 flex items-start gap-3">
@@ -258,7 +261,7 @@
             <span id="checkout-total-val" class="text-sm font-extrabold text-amber-400">Rs. 0</span>
           </div>
           <button type="submit" class="py-3 px-6 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 font-bold text-xs shadow-lg shadow-orange-500/20">
-            Confirm Demo Order
+            Place Order
           </button>
         </div>
       </form>
@@ -266,12 +269,19 @@
   </div>
 
 
-  <!-- Local admin editor; production multi-device publishing requires a backend -->
+  <!-- Secured cloud menu admin -->
   <div id="admin-modal" class="fixed inset-0 z-[60] bg-slate-950/95 hidden overflow-y-auto p-4">
     <div class="max-w-lg mx-auto bg-slate-900 border border-slate-700 rounded-2xl p-5 space-y-4">
       <div class="flex justify-between items-center"><h2 class="text-xl font-bold text-amber-400">Menu Admin</h2><button onclick="closeAdmin()" aria-label="Close admin">✕</button></div>
-      <p class="text-xs text-slate-400">Changes are saved in this browser only until you export a GitHub ZIP and commit it to your repository. GitHub Pages is public and does NOT provide secure admin access or shared live orders.</p>
-      <div class="flex gap-2 flex-wrap"><button onclick="newItem()" class="bg-amber-500 text-slate-950 rounded-lg px-3 py-2 font-bold text-xs">+ New Dish</button><button onclick="exportMenu()" class="bg-slate-700 rounded-lg px-3 py-2 text-xs">Export menu.json</button><button onclick="exportSiteZip()" class="bg-amber-500 text-slate-950 rounded-lg px-3 py-2 text-xs font-bold">Export GitHub ZIP (with media)</button><label class="bg-slate-700 rounded-lg px-3 py-2 text-xs cursor-pointer">Import JSON<input type="file" accept="application/json" class="hidden" onchange="importMenu(event)"></label></div>
+      <p class="text-xs text-slate-400">Save publishes changes to the shared menu. Customers receive updates automatically.</p>
+      <p id="admin-message" class="text-xs text-amber-300" role="status">Sign in to edit the shared menu.</p>
+      <form id="admin-login" onsubmit="signInAdmin(event)" class="space-y-3">
+        <label class="block text-sm">Admin email<input id="admin-email" type="email" required autocomplete="username" class="admin-input"></label>
+        <label class="block text-sm">Password<input id="admin-password" type="password" required autocomplete="current-password" class="admin-input"></label>
+        <button type="submit" class="bg-amber-500 text-black px-4 py-2 rounded-xl font-bold">Sign in</button>
+      </form>
+      <button id="admin-logout" onclick="signOutAdmin()" class="hidden text-xs underline">Sign out</button>
+      <div id="admin-tools" class="hidden flex gap-2 flex-wrap"><button onclick="newItem()" class="bg-amber-500 text-slate-950 rounded-lg px-3 py-2 font-bold text-xs">+ New Dish</button><button onclick="exportMenu()" class="bg-slate-700 rounded-lg px-3 py-2 text-xs">Export JSON</button></div>
       <div id="admin-list" class="space-y-2"></div>
       <form id="admin-form" onsubmit="saveItem(event)" class="hidden space-y-3 border-t border-slate-700 pt-4">
         <h3 id="editor-title" class="font-bold">Dish editor</h3>
@@ -279,6 +289,7 @@
         <label class="block text-xs">Dish name<input id="edit-title" required maxlength="100" class="admin-input" placeholder="Chicken Burger"></label>
         <label class="block text-xs">Category<input id="edit-category" required maxlength="50" class="admin-input" placeholder="Burgers"></label>
         <label class="block text-xs">Price (PKR)<input id="edit-price" type="number" required min="0" step="1" class="admin-input" placeholder="850"></label>
+        <label class="flex gap-2 text-sm items-center"><input id="edit-available" type="checkbox" checked> Available to order</label>
         <label class="block text-xs">Description<textarea id="edit-description" maxlength="500" class="admin-input" rows="2"></textarea></label>
 
         <label class="block text-xs">Photo URL (HTTPS)<input id="edit-image" type="url" class="admin-input" placeholder="https://..."></label>
@@ -289,9 +300,9 @@
           <label class="block text-xs">Food photo (JPG / PNG / WebP)<input id="upload-image" type="file" accept="image/jpeg,image/png,image/webp" class="admin-input"></label>
           <label class="block text-xs">3D model (.glb)<input id="upload-model" type="file" accept=".glb,model/gltf-binary" class="admin-input"></label>
           <label class="block text-xs">iPhone AR (.usdz)<input id="upload-usdz" type="file" accept=".usdz,model/vnd.usdz+zip" class="admin-input"></label>
-          <div id="upload-status" class="text-xs text-slate-400">Files are saved locally in this browser (IndexedDB). URL fields above are optional alternatives.</div>
+          <div id="upload-status" class="text-xs text-slate-400">Files upload to shared cloud storage when you save. Photo limit 15 MB; GLB / USDZ limit 50 MB per file.</div>
           <div id="upload-preview" class="space-y-2"></div>
-          <p class="text-xs text-amber-200">Local GLB preview works in compatible browsers. Camera AR often requires publicly hosted HTTPS model files, especially on iPhone. Use Export GitHub ZIP to include browser-uploaded media files.</p>
+          <p class="text-xs text-amber-200">Uploaded media receives an HTTPS URL for all customers. GLB and USDZ must both be exported at matching real dimensions.</p>
         </div>
         <div class="rounded-xl border border-amber-500/30 p-3 space-y-2">
           <p class="font-semibold text-sm text-amber-400">Real-size 3D calibration</p>
@@ -307,16 +318,7 @@
   </div>
 
 
-  <!-- Local demo kitchen; no server / multi-device synchronization -->
-  <div id="kitchen-modal" class="fixed inset-0 z-[70] bg-slate-950/95 hidden overflow-y-auto p-4">
-    <div class="max-w-3xl mx-auto space-y-4">
-      <div class="flex justify-between items-center"><div><h2 class="text-xl font-bold text-amber-400">Kitchen · Demo Orders</h2><p class="text-xs text-slate-400">Orders are stored only in this browser. Not a live kitchen connection.</p></div><button onclick="closeKitchen()" class="bg-slate-800 px-3 py-2 rounded-xl">Close ✕</button></div>
-      <div class="flex gap-2 flex-wrap"><button onclick="renderKitchen()" class="bg-slate-800 rounded-lg px-3 py-2 text-xs">Refresh</button><button onclick="exportOrders()" class="bg-slate-800 rounded-lg px-3 py-2 text-xs">Export orders JSON</button><button onclick="clearDemoOrders()" class="bg-red-900/50 rounded-lg px-3 py-2 text-xs">Clear demo orders</button></div>
-      <div id="kitchen-stats" class="text-sm text-amber-300"></div><div id="kitchen-list" class="space-y-3"></div>
-      <div class="border-t border-slate-700 pt-4"><h3 class="font-bold mb-2">Table QR Codes (10 tables)</h3><p class="text-xs text-slate-400 mb-3">For actual phone scanning, publish the website at an HTTPS URL. file:// QR links will not work on other devices.</p><div id="qr-table-list" class="grid grid-cols-2 sm:grid-cols-5 gap-3"></div></div>
-    </div>
-  </div>
-  <div id="order-confirm-modal" class="fixed inset-0 z-[65] bg-slate-950/95 hidden items-center justify-center p-4"><div class="bg-slate-900 border border-amber-500/30 rounded-2xl p-6 max-w-sm w-full text-center space-y-3"><i class="fa-solid fa-circle-check text-4xl text-amber-400"></i><h2 class="text-xl font-bold">Demo order saved!</h2><div id="order-confirm-details" class="text-sm text-slate-300"></div><p class="text-xs text-amber-300">This order is NOT sent to a real restaurant or another device.</p><button onclick="document.getElementById('order-confirm-modal').classList.add('hidden')" class="bg-amber-500 text-slate-950 rounded-xl px-5 py-3 font-bold">Done</button></div></div>
+  <div id="order-confirm-modal" class="fixed inset-0 z-[65] bg-slate-950/95 hidden items-center justify-center p-4"><div class="bg-slate-900 border border-amber-500/30 rounded-2xl p-6 max-w-sm w-full text-center space-y-3"><i class="fa-solid fa-circle-check text-4xl text-amber-400"></i><h2 class="text-xl font-bold">Order received!</h2><div id="order-confirm-details" class="text-sm text-slate-300"></div><p class="text-xs text-amber-300">Your order has been saved to the restaurant kitchen. Payment is due at the counter.</p><button onclick="document.getElementById('order-confirm-modal').classList.add('hidden')" class="bg-amber-500 text-slate-950 rounded-xl px-5 py-3 font-bold">Done</button></div></div>
 
   <!-- Success Toast Notification -->
   <div id="toast-notification" class="fixed top-5 left-1/2 -translate-x-1/2 z-50 bg-amber-500 text-slate-950 px-4 py-3 rounded-2xl shadow-2xl font-bold text-xs flex items-center gap-2 transform -translate-y-20 opacity-0 transition-all duration-300">
@@ -327,89 +329,8 @@
   <!-- JavaScript Logic -->
   <script>
     // Menu Data
-    const defaultMenuItems = [
-      {
-        id: "burger-01",
-        category: "Burger",
-        title: " Cheeseburger",
-        description: "Juicy beef patty topped with melted cheddar, organic lettuce, tomatoes, and house sauce.",
-        price: 850,
-
-        image: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=600&q=80",
-        modelUrl: ""
-      },
-      {
-        id: "pizza-01",
-        category: "Pizza",
-        title: "Italian Pepperoni Pizza",
-        description: "Fresh mozzarella cheese, pepperoni slices, and rich tomato basil sauce baked crisp.",
-        price: 1890,
-
-        image: "https://images.unsplash.com/photo-1513104890138-7c749659a591?auto=format&fit=crop&w=600&q=80",
-        modelUrl: ""
-      },
-      {
-        id: "dessert-01",
-        category: "Dessert",
-        title: "Chocolate Berry Cake",
-        description: "Rich dark chocolate layer cake topped with wild berries and sweet powdered glaze.",
-        price: 650,
-
-        image: "https://images.unsplash.com/photo-1551024709-8f23befc6f87?auto=format&fit=crop&w=600&q=80",
-        modelUrl: ""
-      },
-      {
-        id: "drink-01",
-        category: "Drinks",
-        title: "Fresh Lemon Mint Mojito",
-        description: "Sparkling soda mixed with fresh crushed mint leaves, lime juice, and cane sugar.",
-        price: 450,
-
-        image: "https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?auto=format&fit=crop&w=600&q=80",
-        modelUrl: ""
-      }
-    ];
-
-    const STORAGE_KEY = 'nosh_menu_pkr_v1';
-    const GITHUB_MENU_URL = './menu.json';
-    let menuItems;
-    try { const stored = JSON.parse(localStorage.getItem(STORAGE_KEY)); menuItems = Array.isArray(stored) ? stored : structuredClone(defaultMenuItems); }
-    catch { menuItems = structuredClone(defaultMenuItems); }
-    // Browser-only media storage: binary assets are stored as Blobs, not localStorage strings.
-    const MEDIA_DB = 'nosh_media_demo_v1';
-    let mediaDBPromise;
-    const mediaObjectUrls = new Map();
-    function openMediaDB() {
-      if (!mediaDBPromise) mediaDBPromise = new Promise((resolve,reject)=>{
-        const req=indexedDB.open(MEDIA_DB,1);
-        req.onupgradeneeded=()=>req.result.createObjectStore('files');
-        req.onsuccess=()=>resolve(req.result);
-        req.onerror=()=>reject(req.error);
-      });
-      return mediaDBPromise;
-    }
-    async function mediaOperation(mode, operation) {
-      const db=await openMediaDB();
-      return new Promise((resolve,reject)=>{
-        const tx=db.transaction('files',mode), store=tx.objectStore('files');
-        const req=operation(store); req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);
-      });
-    }
-    const getMedia = key => mediaOperation('readonly',s=>s.get(key));
-    const putMedia = (key,blob) => mediaOperation('readwrite',s=>s.put(blob,key));
-    const deleteMedia = key => mediaOperation('readwrite',s=>s.delete(key));
-    const mediaKey=(id,type)=>id+':'+type;
-    async function resolveMedia(item,type) {
-      const key=mediaKey(item.id,type);
-      const old=mediaObjectUrls.get(key);
-      if(old) { URL.revokeObjectURL(old);mediaObjectUrls.delete(key); }
-      if(!item.localMedia?.[type])return;
-      try {const blob=await getMedia(key);if(!blob)return;
-        const url=URL.createObjectURL(blob);mediaObjectUrls.set(key,url);
-      } catch(e) { console.warn('Could not read local media',e); }
-    }
-    function mediaUrl(item,type) {return mediaObjectUrls.get(mediaKey(item.id,type)) || safeUrl(type==='image'?item.image:type==='model'?item.modelUrl:item.usdzUrl);}
-    async function hydrateMedia(){await Promise.all(menuItems.flatMap(i=>['image','model','usdz'].map(t=>resolveMedia(i,t))));renderMenu();updateCartUI();renderAdminList();}
+    let menuItems=[], menuReady=false;
+    function mediaUrl(item,type){return safeUrl(type==='image'?item.image:type==='model'?item.modelUrl:item.usdzUrl);}
     async function previewUploads(){
       const area=document.getElementById('upload-preview');area.replaceChildren();
       const img=document.getElementById('upload-image').files[0];
@@ -425,9 +346,8 @@
     for(const type of ['image','model','usdz'])document.getElementById('upload-'+type).addEventListener('change',previewUploads);
     const money = n => 'Rs. ' + Number(n || 0).toLocaleString('en-PK', {maximumFractionDigits:0});
     const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-    const safeUrl = v => { try { if (!v) return ''; const u = new URL(v, location.href); return (u.protocol === 'https:' || (u.protocol === 'http:' && location.hostname === 'localhost') || (u.protocol === 'file:' && location.protocol === 'file:')) ? u.href : ''; } catch { return ''; } };
-    const categories = () => ['All Items', ...new Set(menuItems.map(i => i.category))];
-    const persist = () => { localStorage.setItem(STORAGE_KEY, JSON.stringify(menuItems)); renderCategories(); renderMenu(); updateCartUI(); renderAdminList(); };
+    const safeUrl = v => { try { const u = new URL(v); return u.protocol === 'https:' ? u.href : ''; } catch { return ''; } };
+    const categories = () => ['All Items', ...new Set(menuItems.filter(i=>i.available).map(i => i.category))];
     let currentCategory = "All Items";
     let cart = [];
 
@@ -453,7 +373,8 @@
     // Render Menu Cards
     function renderMenu() {
       const container = document.getElementById('menu-container');
-      const filtered = currentCategory === "All Items" ? menuItems : menuItems.filter(i => i.category === currentCategory);
+      const visible=menuItems.filter(i=>i.available);
+      const filtered=currentCategory === "All Items" ? visible : visible.filter(i=>i.category===currentCategory);
 
       container.innerHTML = filtered.map(item => `
         <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden hover:border-slate-700 transition flex flex-col sm:flex-row">
@@ -487,7 +408,7 @@
     // Cart Management Logic
     function addToCart(itemId) {
       const item = menuItems.find(i => i.id === itemId);
-      if (!item) return;
+      if (!item || !item.available || !menuReady) return;
       const existing = cart.find(c => c.id === itemId);
 
       if (existing) {
@@ -514,7 +435,7 @@
     function updateCartUI() {
       const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
       const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-      const tax = 0; // Demo only: confirm actual applicable taxes before going live.
+      const tax = 0; // Configure applicable tax rules before charging customers.
       const total = subtotal + tax;
 
       // Badges & Floating Total
@@ -643,41 +564,48 @@
       document.getElementById('checkout-modal').classList.add('hidden');
     }
 
-    const ORDER_KEY='nosh_demo_orders_v1';
-    const STATUSES=['Received','Preparing','Ready','Served','Cancelled'];
-    function getOrders(){try {const x=JSON.parse(localStorage.getItem(ORDER_KEY)||'[]');return Array.isArray(x)?x:[]}catch{return []}}
-    function saveOrders(orders){localStorage.setItem(ORDER_KEY,JSON.stringify(orders));renderKitchen();}
-    function handlePlaceOrder(e) {
+    let placingOrder=false, pendingOrder=null, pendingSignature='';
+    async function handlePlaceOrder(e) {
       e.preventDefault();
-      if(!cart.length)return;
+      if(placingOrder || !cart.length || !menuReady) return;
       const name=document.getElementById('cust-name').value.trim();
       const table=Number(document.getElementById('cust-table').value);
       const payment=document.getElementById('cust-payment').value;
       if(!name||!Number.isInteger(table)||table<1||table>10)return alert('Enter your name and select Table 01–10.');
-      const orders=getOrders();
-      const id='N-'+Date.now().toString(36).toUpperCase()+'-'+Math.random().toString(36).slice(2,5).toUpperCase();
-      const total=cart.reduce((sum,i)=>sum+i.price*i.quantity,0);
-      const order={id,createdAt:new Date().toISOString(),name,phone:document.getElementById('cust-phone').value.trim(),table,payment,status:'Received',items:cart.map(i=>({id:i.id,title:i.title,price:i.price,quantity:i.quantity})),total};
-      try {orders.unshift(order);saveOrders(orders)} catch(err){alert('Order could not be saved locally: '+err.message);return}
-      cart=[];updateCartUI();closeCheckoutModal();
-      document.getElementById('order-confirm-details').textContent=`Order ${id} · Table ${String(table).padStart(2,'0')} · ${money(total)} · ${payment} at Counter`;
-      document.getElementById('order-confirm-modal').classList.remove('hidden');
-      document.getElementById('order-form').reset();initializeTables();
+      const payload={name,phone:document.getElementById('cust-phone').value.trim(),table,payment,
+        items:cart.map(i=>({id:i.id,quantity:i.quantity})),
+        total:cart.reduce((sum,i)=>sum+i.price*i.quantity,0)};
+      const signature=JSON.stringify(payload);
+      if(signature!==pendingSignature || !pendingOrder) {
+        pendingSignature=signature;
+        pendingOrder={id:crypto.randomUUID(),token:crypto.randomUUID(),...payload};
+      }
+      const order=pendingOrder;
+      placingOrder=true;
+      const button=e.target.querySelector('button[type="submit"]');
+      const label=button.textContent; button.disabled=true;button.textContent='Sending order…';
+      try {
+        const {data:receipt,error}=await menuDb.rpc('place_order',{
+          p_id:order.id,p_token:order.token,p_name:order.name,p_phone:order.phone,
+          p_table:order.table,p_payment:order.payment,p_items:order.items,p_expected_total:order.total
+        });
+        if(error)throw error;
+        cart=[];updateCartUI();closeCheckoutModal();
+        document.getElementById('order-confirm-details').textContent=
+          'Order '+order.id+' · Table '+String(table).padStart(2,'0')+' · '+money(receipt.total)+' · '+payment+' at Counter';
+        document.getElementById('order-confirm-modal').classList.remove('hidden');
+        document.getElementById('order-form').reset();initializeTables();
+        pendingOrder=null;pendingSignature='';
+      } catch(error) {
+        alert('Order confirmation failed. '+error.message+' Your cart is kept; retry from this page to confirm.');
+        await loadMenu();
+      } finally {
+        placingOrder=false;button.disabled=false;button.textContent=label;
+      }
     }
-    function openKitchen(){document.getElementById('kitchen-modal').classList.remove('hidden');renderKitchen();renderTableQRs()}
-    function closeKitchen(){document.getElementById('kitchen-modal').classList.add('hidden')}
-    function changeOrderStatus(id,status){if(!STATUSES.includes(status))return;const orders=getOrders();const o=orders.find(x=>x.id===id);if(!o)return;o.status=status;saveOrders(orders)}
-    function renderKitchen(){
-      const orders=getOrders(), active=orders.filter(o=>!['Served','Cancelled'].includes(o.status));
-      const revenue=orders.filter(o=>o.status!=='Cancelled').reduce((n,o)=>n+o.total,0);
-      document.getElementById('kitchen-stats').textContent=`${orders.length} demo orders · ${active.length} active · ${money(revenue)} non-cancelled order value (not verified payments)`;
-      document.getElementById('kitchen-list').innerHTML=orders.length?orders.map(o=>`<div class="rounded-2xl border border-slate-700 bg-slate-900 p-4 space-y-2"><div class="flex flex-wrap justify-between gap-2"><div><b class="text-amber-400">${esc(o.id)}</b> · Table ${String(o.table).padStart(2,'0')}<p class="text-xs text-slate-400">${esc(o.name)} · ${esc(o.payment)} at Counter · ${new Date(o.createdAt).toLocaleString()}</p></div><b>${money(o.total)}</b></div><div class="text-sm">${o.items.map(i=>`${Number(i.quantity)} × ${esc(i.title)} — ${money(i.price*i.quantity)}`).join('<br>')}</div><div class="flex items-center gap-2"><label class="text-xs">Status</label><select class="admin-input !mt-0" onchange="changeOrderStatus('${esc(o.id)}',this.value)">${STATUSES.map(x=>`<option value="${x}" ${x===o.status?'selected':''}>${x}</option>`).join('')}</select></div></div>`).join(''):'<p class="text-slate-400 text-sm">No demo orders yet. Place an order from the customer menu.</p>';
-    }
+    function openKitchen(){window.location.href='kitchen.html'}
     function initializeTables(){const el=document.getElementById('cust-table');el.innerHTML='<option value="">Select table</option>'+Array.from({length:10},(_,i)=>`<option value="${i+1}">Table ${String(i+1).padStart(2,'0')}</option>`).join('');const t=Number(new URLSearchParams(location.search).get('table'));if(Number.isInteger(t)&&t>=1&&t<=10){el.value=String(t);el.disabled=true;}else el.disabled=false;}
     function renderTableQRs(){const el=document.getElementById('qr-table-list');el.replaceChildren();for(let i=1;i<=10;i++){const wrap=document.createElement('div');wrap.className='bg-white text-slate-900 p-2 rounded-xl text-center';const label=document.createElement('div');label.textContent='Table '+String(i).padStart(2,'0');label.className='font-bold text-xs mb-2';const qr=document.createElement('div');qr.className='flex justify-center';wrap.append(label,qr);const url=new URL(location.href);url.searchParams.set('table',String(i).padStart(2,'0'));url.hash='';if(typeof QRCode!=='undefined'){new QRCode(qr,{text:url.href,width:110,height:110,correctLevel:QRCode.CorrectLevel.M})}else {const fallback=document.createElement('p');fallback.textContent='QR library unavailable';fallback.className='text-xs';qr.append(fallback)}el.append(wrap)}}
-    function exportOrders(){const blob=new Blob([JSON.stringify(getOrders(),null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='nosh-demo-orders.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2000)}
-    function clearDemoOrders(){if(confirm('Delete ALL demo orders stored in this browser?'))saveOrders([])}
-
     function showToast(msg) {
       const toast = document.getElementById('toast-notification');
       document.getElementById('toast-message').textContent = msg;
@@ -691,111 +619,22 @@
       }, 3000);
     }
 
-    function openAdmin() { document.getElementById('admin-modal').classList.remove('hidden'); renderAdminList(); }
-    function closeAdmin() { document.getElementById('admin-modal').classList.add('hidden'); }
-    function renderAdminList() {
-      document.getElementById('admin-list').innerHTML = menuItems.map(i => `<div class="flex items-center justify-between gap-2 bg-slate-800 p-3 rounded-xl"><div class="min-w-0"><div class="font-semibold text-sm truncate">${esc(i.title)}</div><div class="text-xs text-amber-400">${money(i.price)} · ${esc(i.category)}</div></div><div class="flex gap-2"><button class="bg-slate-700 rounded-lg p-2 text-xs" onclick="editItem('${i.id}')">Edit</button><button class="bg-red-900/60 text-red-200 rounded-lg p-2 text-xs" onclick="deleteItem('${i.id}')">Delete</button></div></div>`).join('') || '<p class="text-sm text-slate-400">No dishes yet.</p>';
-    }
     function newItem() { fillEditor(null); }
     function editItem(id) { fillEditor(menuItems.find(i => i.id === id)); }
     function fillEditor(i) {
+      if(!adminAuthorized)return adminMessage('Admin login required.');
       document.getElementById('admin-form').classList.remove('hidden');
       document.getElementById('editor-title').textContent = i ? 'Edit dish' : 'Add dish';
       for (const [field, val] of Object.entries({id:i?.id||'',title:i?.title||'',category:i?.category||'',price:i?.price??'',description:i?.description||'',image:i?.image||'',model:i?.modelUrl||'',usdz:i?.usdzUrl||'',width:i?.widthCm||''})) document.getElementById('edit-'+field).value=val;
       document.getElementById('edit-axis').value=i?.widthAxis||'maxXZ';
+      document.getElementById('edit-available').checked=i?.available??true;
       for(const type of ['image','model','usdz'])document.getElementById('upload-'+type).value='';
       document.getElementById('upload-preview').replaceChildren();
       document.getElementById('admin-form').scrollIntoView({behavior:'smooth',block:'start'});
     }
-    async function saveItem(e) {
-      e.preventDefault();
-      const get = k => document.getElementById('edit-'+k).value.trim();
-      const id = get('id') || 'dish-'+crypto.randomUUID();
-      const price = Number(get('price'));
-      if (!Number.isFinite(price) || price < 0) return showToast('Enter a valid price');
-      const existing=menuItems.find(i=>i.id===id);
-      const item = {localMedia:{...(existing?.localMedia||{})},id,title:get('title'),category:get('category'),price,description:get('description'),image:safeUrl(get('image')),modelUrl:safeUrl(get('model')),usdzUrl:safeUrl(get('usdz')),widthCm:Number(get('width'))||null,widthAxis:document.getElementById('edit-axis').value};
-      const limits={image:15*1024*1024,model:100*1024*1024,usdz:100*1024*1024};
-      const files={};
-      for(const type of ['image','model','usdz']) {
-        const file=document.getElementById('upload-'+type).files[0];
-        if(!file)continue;
-        const valid=type==='image'?['image/jpeg','image/png','image/webp'].includes(file.type):file.name.toLowerCase().endsWith('.'+(type==='model'?'glb':'usdz'));
-        if(!valid || file.size>limits[type])return alert('Invalid or oversized '+type+' file');
-        files[type]=file;
-      }
-      try {
-        for(const [type,file] of Object.entries(files)){
-          await putMedia(mediaKey(id,type),file);item.localMedia[type]=true;
-          await resolveMedia(item,type);
-        }
-      }catch(err){return alert('Could not store file. Check browser storage space: '+err.message);}
-      const idx = menuItems.findIndex(i => i.id === id);
-      if (idx < 0) menuItems.push(item); else menuItems[idx] = item;
-      cart = cart.map(c => c.id === id ? {...item,quantity:c.quantity} : c);
-      document.getElementById('admin-form').classList.add('hidden'); persist(); showToast('Dish saved in this browser');
-    }
-    function deleteItem(id) {
-      if (!confirm('Delete this dish?')) return;
-      for(const type of ['image','model','usdz']){const key=mediaKey(id,type);const url=mediaObjectUrls.get(key);if(url)URL.revokeObjectURL(url);mediaObjectUrls.delete(key);deleteMedia(key).catch(console.warn);}
-      menuItems = menuItems.filter(i => i.id !== id); cart = cart.filter(i => i.id !== id);
-      if (currentCategory !== 'All Items' && !menuItems.some(i => i.category === currentCategory)) currentCategory='All Items';
-      persist(); showToast('Dish deleted');
-    }
     function exportMenu() {
-      const blob = new Blob([JSON.stringify(menuItems.map(i=>({...i,localMedia:{}})),null,2)],{type:'application/json'});
-      const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='menu.json'; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000);
-    }
-    async function exportSiteZip() {
-      if (typeof JSZip === 'undefined') return alert('ZIP library unavailable. Check internet connection and try again.');
-      const zip = new JSZip();
-      const exported=[];
-      const extension={image:'jpg',model:'glb',usdz:'usdz'};
-      for(const item of menuItems){
-        const copy={...item,localMedia:{}};
-        for(const type of ['image','model','usdz']){
-          if(!item.localMedia?.[type]) continue;
-          const blob=await getMedia(mediaKey(item.id,type));
-          if(!blob) { alert('Missing uploaded file for '+item.title+' ('+type+'). Export stopped.'); return; }
-          const ext=type==='image'?(blob.type==='image/png'?'png':blob.type==='image/webp'?'webp':'jpg'):extension[type];
-          const dir=type==='image'?'images':'models';
-          const filename=item.id+'-'+type+'.'+ext;
-          zip.file(dir+'/'+filename,blob);
-          const path='./'+dir+'/'+filename;
-          if(type==='image')copy.image=path;
-          if(type==='model')copy.modelUrl=path;
-          if(type==='usdz')copy.usdzUrl=path;
-        }
-        exported.push(copy);
-      }
-      zip.file('menu.json',JSON.stringify(exported,null,2));
-      // Export the current HTML without changing the user's browser-stored menu.
-      const html='<!DOCTYPE html>\n'+document.documentElement.outerHTML;
-      zip.file('index.html',html);
-      zip.file('README.txt','Nosh GitHub Pages export\nUpload index.html, menu.json, images/ and models/ to repository root.\nCommit changes and enable Settings > Pages > Deploy from branch.\nDemo orders and admin edits are local to each browser, not shared.\nPublic demo only: no secure login, no real kitchen sync.\n');
-      const file=await zip.generateAsync({type:'blob'});
-      const a=document.createElement('a');a.href=URL.createObjectURL(file);a.download='nosh-github-pages.zip';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),3000);
-      showToast('GitHub ZIP exported. Upload extracted files to GitHub.');
-    }
-    async function loadPublishedMenu() {
-      // Only read published menu if this browser has no local admin edits.
-      if(localStorage.getItem(STORAGE_KEY)!==null)return;
-      try {
-        const response=await fetch(GITHUB_MENU_URL,{cache:'no-store'});
-        if(!response.ok)throw Error('menu.json not found');
-        const data=await response.json();
-        if(!Array.isArray(data)||!data.every(i=>i && typeof i.id==='string' && typeof i.title==='string' && Number.isFinite(Number(i.price))))throw Error('Invalid menu.json');
-        menuItems=data.map(i=>({...i,price:Number(i.price)}));
-        renderCategories();renderMenu();updateCartUI();renderAdminList();
-      }catch(e){console.warn('Published menu unavailable; using built-in demo menu',e)}
-    }
-    async function importMenu(e) {
-      const file=e.target.files?.[0]; if(!file)return;
-      try { const data=JSON.parse(await file.text());
-        if(!Array.isArray(data) || data.length>1000 || !data.every(i=>i && typeof i.id==='string' && /^[a-zA-Z0-9-]+$/.test(i.id) && typeof i.title==='string' && typeof i.category==='string' && Number.isFinite(Number(i.price)))) throw Error('Invalid menu file');
-        if (!confirm('Replace the current menu with imported items?')) return;
-        menuItems=data.map(i=>({...i,price:Number(i.price),image:safeUrl(i.image),modelUrl:safeUrl(i.modelUrl),usdzUrl:safeUrl(i.usdzUrl)})); cart=[];currentCategory='All Items';persist();showToast('Menu imported');
-      } catch(err) {alert('Could not import: '+err.message);} finally {e.target.value='';}
+      const blob = new Blob([JSON.stringify(menuItems,null,2)],{type:'application/json'});
+      const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='nosh-menu.json'; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000);
     }
     // Init App
     window.addEventListener('DOMContentLoaded', () => {
@@ -803,8 +642,9 @@
       renderMenu();
       updateCartUI();
       initializeTables();
-      loadPublishedMenu().then(()=>hydrateMedia()).catch(err=>console.warn('Media loading unavailable',err));
+      startCloud();
     });
   </script>
+  <script src="menu-cloud.js"></script>
 </body>
 </html>
