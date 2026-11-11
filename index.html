@@ -335,22 +335,22 @@
         else selectedSizes.delete(item.id);
         const shown = resolveSize(item, size);
         return `
-        <div data-dish-card class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden hover:border-slate-700 transition flex flex-col sm:flex-row">
-          <div class="relative h-44 sm:h-auto sm:w-2/5 overflow-hidden">
-            <img src="${esc(mediaUrl(item,'image'))}" alt="${esc(item.title)}" class="w-full h-full object-cover" />
+        <div data-dish-card class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden hover:border-slate-700 transition flex flex-col gap-3 p-3 sm:flex-row sm:gap-4">
+          <div class="relative h-44 w-full shrink-0 overflow-hidden rounded-xl bg-slate-800 sm:h-auto sm:w-2/5 sm:aspect-square sm:self-center">
+            <img src="${esc(mediaUrl(item,'image'))}" alt="${esc(item.title)}" class="absolute inset-0 w-full h-full object-cover object-center" loading="lazy" />
           </div>
-          <div class="p-4 sm:w-3/5 flex flex-col justify-between gap-3">
+          <div class="flex min-w-0 flex-1 flex-col justify-between gap-3 px-1 pb-1 sm:py-1">
             <div>
-              <div class="flex items-center justify-between">
+              <div class="flex items-start justify-between gap-2">
                 <h3 class="font-bold text-white text-base">${esc(item.title)}</h3>
-                <span data-dish-price aria-live="polite" class="text-amber-400 font-bold text-base">${money(shown.price)}</span>
+                <span data-dish-price aria-live="polite" class="shrink-0 whitespace-nowrap text-amber-400 font-bold text-base">${money(shown.price)}</span>
               </div>
               <p class="text-xs text-slate-400 mt-1.5 line-clamp-2">${esc(item.description)}</p>
             </div>
             
             ${sizes.length ? `<label class="text-xs text-slate-300">Size
               <select onchange="chooseSize('${item.id}', this)" class="block w-full mt-1 rounded-lg bg-slate-800 border border-slate-700 px-3 py-2 text-sm">
-                ${sizes.map(key => `<option value="${key}" ${key === size ? 'selected' : ''}>${sizeLabels[key]}${item.sizes[key].widthCm ? ' · ' + Number(item.sizes[key].widthCm) + ' cm' : ''} · ${money(item.sizes[key].price)}</option>`).join('')}
+                ${sizes.map(key => `<option value="${key}" ${key === size ? 'selected' : ''}>${sizeLabels[key]}</option>`).join('')}
               </select></label>` : ''}
             <div class="flex items-center gap-2 pt-2">
               <button onclick="openArModal('${item.id}')" class="flex-1 py-2.5 px-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 hover:bg-amber-500 hover:text-slate-950 transition text-xs font-semibold flex items-center justify-center gap-2">
