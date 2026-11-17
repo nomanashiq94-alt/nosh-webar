@@ -1,5 +1,6 @@
 const STATUSES = ['Received','Preparing','Ready','Served','Cancelled'];
 let db, channel, orders=[], generation=0, request=0, signedIn=false;
+let kitchenRestaurantId = null;
 const el=id=>document.getElementById(id);
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money=v=>Number(v||0).toLocaleString('en-PK');
@@ -48,15 +49,26 @@ el('kitchen-list').addEventListener('change',async event=>{
 async function sessionChanged(session){
   const epoch=++generation;
   signedIn=false;
+  kitchenRestaurantId = null;
   if(channel){db.removeChannel(channel);channel=null;}
   orders=[];el('kitchen-list').replaceChildren();el('kitchen-stats').textContent='';
   el('login').classList.toggle('hidden',!!session);
   el('logout').classList.toggle('hidden',!session);
   if(!session){message('Sign in with an authorized kitchen account.');return;}
-  const {data,error}=await db.from('kitchen_staff').select('user_id').eq('user_id',session.user.id).maybeSingle();
+const {data,error}=await db
+  .from('kitchen_staff')
+  .select('user_id, restaurant_id')
+  .eq('user_id',session.user.id)
+  .maybeSingle();
   if(epoch!==generation)return;
   if(error||!data){message('This account has no kitchen access. Add its Auth UID to kitchen_staff.');return;}
-  signedIn=true;message('Connecting live orders…');
+if (!data.restaurant_id) {
+  message('No restaurant assigned to this kitchen account.');
+  return;
+}
+kitchenRestaurantId = data.restaurant_id;
+signedIn = true;
+message('Connecting live orders…');
   channel=db.channel('kitchen-orders').on('postgres_changes',
     {event:'*',schema:'public',table:'orders'},()=>{refreshOrders().catch(e=>message(e.message));})
     .subscribe(status=>{
