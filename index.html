@@ -592,10 +592,25 @@
       const button=e.target.querySelector('button[type="submit"]');
       const label=button.textContent; button.disabled=true;button.textContent='Sending order…';
       try {
-        const {data:receipt,error}=await menuDb.rpc('place_order',{
-          p_id:order.id,p_token:order.token,p_name:order.name,p_phone:order.phone,
-          p_table:order.table,p_payment:order.payment,p_items:order.items,p_expected_total:order.total
-        });
+        
+const restaurantId = window.NOSH_ACTIVE_RESTAURANT?.id;
+
+if (!restaurantId) {
+  throw new Error('Restaurant not loaded. Please refresh the page.');
+}
+
+const {data:receipt,error}=await menuDb.rpc('place_restaurant_order',{
+  p_restaurant_id: restaurantId,
+  p_id: order.id,
+  p_token: order.token,
+  p_name: order.name,
+  p_phone: order.phone,
+  p_table: order.table,
+  p_payment: order.payment,
+  p_items: order.items,
+  p_expected_total: order.total
+});
+
         if(error)throw error;
         cart=[];updateCartUI();closeCheckoutModal();
         document.getElementById('order-confirm-details').textContent=
