@@ -19,23 +19,23 @@ function renderKitchen(){
     </div>`).join(''):'<p class="col-span-full text-slate-400 py-12 text-center">No unarchived orders. Waiting for customers…</p>';
 }
 async function refreshOrders(){
-  if(!signedIn)return;
+  if(!signedIn || !kitchenRestaurantId)return;
   const epoch=generation, ticket=++request;
-  const {data,error}=await db.from('orders').select('*').eq('archived',false).order('createdAt',{ascending:false});
+  const {data,error}=await db.from('orders').select('*').eq('restaurant_id',kitchenRestaurantId).eq('archived',false).order('createdAt',{ascending:false});
   if(epoch!==generation || ticket!==request)return;
   if(error){message('Could not load orders: '+error.message);return;}
   orders=data;renderKitchen();
 }
 async function changeOrderStatus(id,status){
-  if(!STATUSES.includes(status)||!signedIn)return;
-  const {data,error}=await db.from('orders').update({status}).eq('id',id).select('id');
+  if(!STATUSES.includes(status)||!signedIn||!kitchenRestaurantId)return;
+  const {data,error}=await db.from('orders').update({status}).eq('id',id).eq('restaurant_id',kitchenRestaurantId).select('id');
   if(error||!data?.length){message('Status was not saved: '+(error?.message||'No permission or order missing'));await refreshOrders();return;}
   await refreshOrders();
 }
 async function clearOrders(){
-  if(!signedIn)return;
+  if(!signedIn || !kitchenRestaurantId)return;
   if(!confirm('Archive all Served and Cancelled orders? They stay in the database.'))return;
-  const {error}=await db.from('orders').update({archived:true}).in('status',['Served','Cancelled']).eq('archived',false);
+  const {error}=await db.from('orders').update({archived:true}).eq('restaurant_id',kitchenRestaurantId).in('status',['Served','Cancelled']).eq('archived',false);
   if(error)message('Archive failed: '+error.message);
   await refreshOrders();
 }
@@ -55,22 +55,14 @@ async function sessionChanged(session){
   el('login').classList.toggle('hidden',!!session);
   el('logout').classList.toggle('hidden',!session);
   if(!session){message('Sign in with an authorized kitchen account.');return;}
-const {data,error}=await db
-  .from('kitchen_staff')
-  .select('user_id, restaurant_id')
-  .eq('user_id',session.user.id)
-  .maybeSingle();
+  const {data,error}=await db.from('kitchen_staff').select('user_id, restaurant_id').eq('user_id',session.user.id).maybeSingle();
   if(epoch!==generation)return;
   if(error||!data){message('This account has no kitchen access. Add its Auth UID to kitchen_staff.');return;}
-if (!data.restaurant_id) {
-  message('No restaurant assigned to this kitchen account.');
-  return;
-}
-kitchenRestaurantId = data.restaurant_id;
-signedIn = true;
-message('Connecting live orders…');
+  if(!data.restaurant_id){message('No restaurant assigned to this kitchen account.');return;}
+  kitchenRestaurantId=data.restaurant_id;
+  signedIn=true;message('Connecting live orders…');
   channel=db.channel('kitchen-orders').on('postgres_changes',
-    {event:'*',schema:'public',table:'orders'},()=>{refreshOrders().catch(e=>message(e.message));})
+    {event:'*',schema:'public',table:'orders',filter:'restaurant_id=eq.'+kitchenRestaurantId},()=>{refreshOrders().catch(e=>message(e.message));})
     .subscribe(status=>{
       if(epoch!==generation)return;
       if(status==='SUBSCRIBED'){message('Live connected · auto refresh backup every 15 seconds');refreshOrders().catch(e=>message(e.message));}
