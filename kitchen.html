@@ -28,7 +28,7 @@
         <button onclick="refreshOrders()" class="bg-slate-800 hover:bg-slate-700 px-4 py-2 rounded-xl text-xs font-semibold">
           <i class="fa-solid fa-rotate-right"></i> Refresh
         </button>
-        <button onclick="clearOrders()" class="bg-red-900/40 hover:bg-red-900/60 border border-red-500/30 text-red-200 px-4 py-2 rounded-xl text-xs">
+        <button id="archive-finished" onclick="clearOrders()" class="bg-red-900/40 hover:bg-red-900/60 border border-red-500/30 text-red-200 px-4 py-2 rounded-xl text-xs">
           Archive Finished
         </button>
       </div>
@@ -42,6 +42,12 @@
       <button class="bg-amber-500 text-black p-3 rounded-xl" type="submit">Sign in</button>
     </form>
     <button id="logout" class="hidden text-sm underline">Sign out</button>
+    <div class="flex flex-wrap gap-2" role="tablist" aria-label="Kitchen order views">
+      <button id="tab-active" type="button" role="tab" aria-selected="true"
+        class="bg-amber-500 text-black px-4 py-2 rounded-xl text-sm font-semibold">Active Orders</button>
+      <button id="tab-history" type="button" role="tab" aria-selected="false"
+        class="bg-slate-800 text-slate-100 px-4 py-2 rounded-xl text-sm font-semibold">Order History</button>
+    </div>
     <!-- Live Stats -->
     <div id="kitchen-stats" class="text-sm font-semibold text-amber-300"></div>
 

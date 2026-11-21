@@ -1,11 +1,37 @@
 const STATUSES = ['Received','Preparing','Ready','Served','Cancelled'];
 let db, channel, orders=[], generation=0, request=0, signedIn=false;
 let kitchenRestaurantId = null;
+let kitchenView = 'active';
+let historyOrders = [];
 const el=id=>document.getElementById(id);
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money=v=>Number(v||0).toLocaleString('en-PK');
 function message(text){el('connection').textContent=text;}
+function switchKitchenView(view){
+  if(!['active','history'].includes(view))return;
+  kitchenView=view;
+  el('tab-active').setAttribute('aria-selected',String(view==='active'));
+  el('tab-history').setAttribute('aria-selected',String(view==='history'));
+  el('tab-active').classList.toggle('bg-amber-500',view==='active');
+  el('tab-active').classList.toggle('text-black',view==='active');
+  el('tab-history').classList.toggle('bg-amber-500',view==='history');
+  el('tab-history').classList.toggle('text-black',view==='history');
+  el('archive-finished').classList.toggle('hidden',view==='history');
+  renderKitchen();
+  refreshOrders().catch(e=>message(e.message));
+}
 function renderKitchen(){
+  if(kitchenView==='history'){
+    el('kitchen-stats').textContent='Archived order history: '+historyOrders.length+' orders · read-only';
+    el('kitchen-list').innerHTML=historyOrders.length?historyOrders.map(o=>`
+      <div class="rounded-2xl border border-slate-700 bg-slate-900 p-4 space-y-3">
+        <div class="flex justify-between gap-3"><div><span class="text-xs text-amber-400">${esc(o.id)}</span><h3 class="text-lg font-bold">Table ${esc(String(o.table).padStart(2,'0'))}</h3></div><b>${esc(o.status)}</b></div>
+        <div class="text-xs text-slate-400"><p>Customer: ${esc(o.name)} (${esc(o.phone||'N/A')})</p><p>Payment: ${esc(o.payment)} at Counter</p><p>${esc(new Date(o.createdAt).toLocaleString())}</p></div>
+        <div class="bg-slate-950 p-3 rounded-xl space-y-1">${(Array.isArray(o.items)?o.items:[]).filter(i=>i && typeof i==='object').map(i=>`<div class="flex justify-between gap-2 text-sm"><span>${esc(i.quantity)} × ${esc(i.title)}</span><span>Rs. ${money(Number(i.price)*Number(i.quantity))}</span></div>`).join('')}</div>
+        <div class="flex justify-between items-center"><b class="text-amber-400">Rs. ${money(o.total)}</b><span class="text-xs text-slate-400">Archived · read-only</span></div>
+      </div>`).join(''):'<p class="col-span-full text-slate-400 py-12 text-center">No archived orders found.</p>';
+    return;
+  }
   const active=orders.filter(o=>!['Served','Cancelled'].includes(o.status));
   const total=orders.filter(o=>o.status!=='Cancelled').reduce((n,o)=>n+Number(o.total),0);
   el('kitchen-stats').textContent='Unarchived orders: '+orders.length+' | Active: '+active.length+' | Order value: Rs. '+money(total)+' (not verified payments)';
@@ -21,24 +47,31 @@ function renderKitchen(){
 async function refreshOrders(){
   if(!signedIn || !kitchenRestaurantId)return;
   const epoch=generation, ticket=++request;
-  const {data,error}=await db.from('orders').select('*').eq('restaurant_id',kitchenRestaurantId).eq('archived',false).order('createdAt',{ascending:false});
-  if(epoch!==generation || ticket!==request)return;
+  const view=kitchenView;
+  const {data,error}=await db.from('orders').select('*')
+    .eq('restaurant_id',kitchenRestaurantId)
+    .eq('archived',view==='history')
+    .order('createdAt',{ascending:false});
+  if(epoch!==generation || ticket!==request || view!==kitchenView)return;
   if(error){message('Could not load orders: '+error.message);return;}
-  orders=data;renderKitchen();
+  if(view==='history')historyOrders=data;else orders=data;
+  renderKitchen();
 }
 async function changeOrderStatus(id,status){
-  if(!STATUSES.includes(status)||!signedIn||!kitchenRestaurantId)return;
+  if(!STATUSES.includes(status)||!signedIn||!kitchenRestaurantId||kitchenView!=='active')return;
   const {data,error}=await db.from('orders').update({status}).eq('id',id).eq('restaurant_id',kitchenRestaurantId).select('id');
   if(error||!data?.length){message('Status was not saved: '+(error?.message||'No permission or order missing'));await refreshOrders();return;}
   await refreshOrders();
 }
 async function clearOrders(){
-  if(!signedIn || !kitchenRestaurantId)return;
+  if(!signedIn || !kitchenRestaurantId || kitchenView!=='active')return;
   if(!confirm('Archive all Served and Cancelled orders? They stay in the database.'))return;
   const {error}=await db.from('orders').update({archived:true}).eq('restaurant_id',kitchenRestaurantId).in('status',['Served','Cancelled']).eq('archived',false);
   if(error)message('Archive failed: '+error.message);
   await refreshOrders();
 }
+el('tab-active').addEventListener('click',()=>switchKitchenView('active'));
+el('tab-history').addEventListener('click',()=>switchKitchenView('history'));
 el('kitchen-list').addEventListener('change',async event=>{
   if(!event.target.matches('select[data-order]'))return;
   event.target.disabled=true;
@@ -51,7 +84,7 @@ async function sessionChanged(session){
   signedIn=false;
   kitchenRestaurantId = null;
   if(channel){db.removeChannel(channel);channel=null;}
-  orders=[];el('kitchen-list').replaceChildren();el('kitchen-stats').textContent='';
+  orders=[];historyOrders=[];el('kitchen-list').replaceChildren();el('kitchen-stats').textContent='';
   el('login').classList.toggle('hidden',!!session);
   el('logout').classList.toggle('hidden',!session);
   if(!session){message('Sign in with an authorized kitchen account.');return;}
