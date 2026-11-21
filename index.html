@@ -89,7 +89,7 @@
           <i class="fa-solid fa-utensils text-lg"></i>
         </div>
         <div>
-          <h1 id="restaurant-brand-name" class="font-bold text-base leading-tight text-white">Nosh</h1>
+          <h1 id="restaurant-brand-name" class="font-bold text-base leading-tight text-white">Restaurant</h1>
           <p class="text-[11px] text-amber-400 font-medium">Explore Menu · Order Fresh</p>
         </div>
       </div>
@@ -406,18 +406,31 @@
         document.getElementById('restaurant-brand-name').textContent = name;
         document.title = name + ' · Menu & Order';
         const icon = document.getElementById('restaurant-brand-icon');
-        icon.replaceChildren();
-        if (logo) {
-          const img = document.createElement('img');
-          img.alt = name + ' logo';
-          img.src = logo;
-          img.className = 'w-full h-full object-contain';
-          img.onerror = () => { icon.replaceChildren(); const fallback = document.createElement('i'); fallback.className = 'fa-solid fa-utensils text-lg'; icon.append(fallback); };
-          icon.append(img);
-        } else {
+        // A missing or blocked image must never display another restaurant's logo.
+        // Wait for the image to load before revealing the customer interface.
+        const fallbackIcon = () => {
+          icon.replaceChildren();
           const fallback = document.createElement('i');
-          fallback.className = 'fa-solid fa-utensils text-lg';
+          fallback.className = 'fa-solid fa-store text-lg';
+          fallback.setAttribute('aria-hidden', 'true');
           icon.append(fallback);
+        };
+        fallbackIcon();
+        if (logo) {
+          const img = new Image();
+          img.alt = name + ' logo';
+          img.className = 'w-full h-full object-contain';
+          const loaded = await new Promise(resolve => {
+            const timeout = setTimeout(() => resolve(false), 5000);
+            img.onload = () => { clearTimeout(timeout); resolve(true); };
+            img.onerror = () => { clearTimeout(timeout); resolve(false); };
+            img.src = logo;
+          });
+          if (loaded && window.NOSH_ACTIVE_RESTAURANT?.id === restaurant.id) {
+            icon.replaceChildren(img);
+          } else if (!loaded) {
+            console.warn('Restaurant logo could not load. Check that the image URL allows embedding:', logo);
+          }
         }
         const loadingScreen = document.getElementById('restaurant-loading-screen');
         if (loadingScreen) loadingScreen.hidden = true;
