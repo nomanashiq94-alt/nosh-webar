@@ -49,9 +49,14 @@ body{font:16px system-ui;background:#101318;color:#f3f4f6;margin:0}main{max-widt
 <button id="start-renew" type="button">Renew Subscription</button>
 <div id="renew-panel" class="renew-panel" hidden>
 <h3>Renew subscription</h3>
-<p class="hint">Renew only after confirming payment was received. This updates the current subscription; it does not create a payment-history record.</p>
+<p class="hint">Only renew after verifying that payment was actually received. Payment and expiry will be saved together in Supabase.</p>
 <form id="renew-form">
+<label>Amount received <input id="renew-amount" type="number" min="0.01" max="999999999" step="0.01" required></label>
+<label>Currency <select id="renew-currency" disabled><option value="PKR">PKR</option><option value="USD">USD</option></select></label>
+<label>Payment method <select id="renew-method" required><option value="">Choose method…</option><option value="cash">Cash</option><option value="bank_transfer">Bank Transfer</option><option value="jazzcash">JazzCash</option><option value="easypaisa">Easypaisa</option><option value="other">Other</option></select></label>
 <label>Payment received on <input id="renew-paid-on" type="date" required></label>
+<label>Transaction reference (optional) <input id="renew-reference" maxlength="250"></label>
+<label>Notes (optional) <textarea id="renew-notes" maxlength="2000" rows="2" style="display:block;width:min(100%,520px);background:#111827;color:white;border:1px solid #596273;border-radius:9px;padding:12px"></textarea></label>
 <label>New expiry date <input id="renew-expiry" type="date" required></label>
 <label>Payment confirmation <select id="renew-confirm" required><option value="">Select…</option><option value="received">I confirm payment was received</option></select></label>
 <p id="renew-status" role="status"></p>

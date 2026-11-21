@@ -381,8 +381,26 @@ function addOneMonth(dateStr) {
 let loadedSubscription = null;
 let selectedSubscriptionRestaurant = null;
 let subscriptionRequest = 0;
+let renewalSaving = false;
+let renewalAttempt = null;
+function resetRenewalAttempt() { renewalAttempt = null; }
+function renewalPayload(restaurant, requestId) {
+  return {
+    p_restaurant_id: restaurant.id,
+    p_request_id: requestId,
+    p_amount: Number($('renew-amount').value),
+    p_currency: $('renew-currency').value,
+    p_payment_method: $('renew-method').value,
+    p_payment_date: $('renew-paid-on').value,
+    p_new_expiry: $('renew-expiry').value,
+    p_transaction_reference: $('renew-reference').value.trim() || null,
+    p_notes: $('renew-notes').value.trim() || null
+  };
+}
 
 async function openSubscription(restaurant, showRenew = false) {
+  if (renewalSaving) { message("Wait for the renewal request to finish."); return; }
+  resetRenewalAttempt();
   const request = ++subscriptionRequest;
   selectedSubscriptionRestaurant = null;
   loadedSubscription = null;
@@ -416,6 +434,8 @@ async function openSubscription(restaurant, showRenew = false) {
 }
 
 $('close-subscription').addEventListener('click', () => {
+  if (renewalSaving) return;
+  resetRenewalAttempt();
   ++subscriptionRequest;
   selectedSubscriptionRestaurant = null;
   loadedSubscription = null;
@@ -424,6 +444,8 @@ $('close-subscription').addEventListener('click', () => {
 });
 
 function prepareRenewal() {
+  if (renewalSaving) return;
+  resetRenewalAttempt();
   if (!selectedSubscriptionRestaurant || !loadedSubscription) {
     $('subscription-status').textContent = 'Save the subscription first, then renew it.';
     return;
@@ -431,6 +453,11 @@ function prepareRenewal() {
   const today = pakistanToday();
   const base = loadedSubscription.expires_on && loadedSubscription.expires_on > today
     ? loadedSubscription.expires_on : today;
+  $('renew-amount').value = Number(loadedSubscription.monthly_fee || 0) > 0 ? loadedSubscription.monthly_fee : '';
+  $('renew-currency').value = loadedSubscription.currency || 'PKR';
+  $('renew-method').value = '';
+  $('renew-reference').value = '';
+  $('renew-notes').value = '';
   $('renew-paid-on').value = today;
   $('renew-expiry').value = addOneMonth(base);
   $('renew-expiry').min = today;
@@ -440,42 +467,72 @@ function prepareRenewal() {
   $('renew-panel').scrollIntoView({behavior:'smooth',block:'start'});
 }
 $('start-renew').addEventListener('click', prepareRenewal);
-$('renew-cancel').addEventListener('click', () => { $('renew-panel').hidden = true; });
+$('renew-cancel').addEventListener('click', () => { if (renewalSaving) return; resetRenewalAttempt(); $('renew-panel').hidden = true; });
 $('renew-form').addEventListener('submit', async event => {
   event.preventDefault();
+  if (renewalSaving) return;
   const restaurant = selectedSubscriptionRestaurant;
   if (!restaurant || !loadedSubscription) return;
   const today = pakistanToday();
+  const status = $('renew-status');
+  const amount = Number($('renew-amount').value);
   const paidOn = $('renew-paid-on').value;
   const expiry = $('renew-expiry').value;
   const previous = loadedSubscription.expires_on;
-  const status = $('renew-status');
-  if ($('renew-confirm').value !== 'received') return status.textContent = 'Confirm payment received first.';
-  if (!paidOn || paidOn > today) return status.textContent = 'Payment date cannot be in the future.';
-  if (!expiry || expiry <= today || (previous && expiry <= previous)) return status.textContent = 'New expiry must be later than today and the previous expiry.';
-  if (!confirm('Confirm payment received and renew '+restaurant.name+' until '+expiry+'?')) return;
+  if ($('renew-confirm').value !== 'received') { status.textContent = 'Confirm actual payment received first.'; return; }
+  if (!Number.isFinite(amount) || amount <= 0 || amount > 999999999) { status.textContent = 'Enter a valid positive payment amount.'; return; }
+  if (!Object.hasOwn(paymentMethods, $('renew-method').value)) { status.textContent = 'Choose a payment method.'; return; }
+  if (!paidOn || paidOn > today) { status.textContent = 'Payment date cannot be in the future.'; return; }
+  if (!expiry || expiry <= today || (previous && expiry <= previous) || (loadedSubscription.starts_on && expiry < loadedSubscription.starts_on)) {
+    status.textContent = 'New expiry must be later than today and the previous expiry/start.'; return;
+  }
+  const candidate = renewalPayload(restaurant, renewalAttempt?.requestId || crypto.randomUUID());
+  const signature = JSON.stringify({...candidate, p_request_id: null});
+  if (renewalAttempt && renewalAttempt.signature !== signature) {
+    status.textContent = 'Details changed after a previous attempt. Check Payment History and subscription expiry before trying a new request.';
+    return;
+  }
+  if (!confirm('Confirm '+formatMoney(amount, candidate.p_currency)+' was actually received for '+restaurant.name+' and renew until '+expiry+'?')) return;
+  if (!renewalAttempt) renewalAttempt = {requestId: candidate.p_request_id, signature};
+  renewalSaving = true;
   const btn = $('renew-submit'); btn.disabled = true;
-  status.textContent = 'Renewing…';
+  $('renew-cancel').disabled = true;
+  $('close-subscription').disabled = true;
+  status.textContent = 'Recording payment and renewing atomically…';
   try {
-    const {data,error} = await db.from('restaurant_subscriptions')
-      .update({starts_on: paidOn, expires_on:expiry, payment_status:'paid', updated_at:new Date().toISOString()})
-      .eq('restaurant_id',restaurant.id)
-      .select('restaurant_id,plan_name,monthly_fee,currency,starts_on,expires_on,payment_status,notes').single();
+    const {data,error} = await db.rpc('renew_restaurant_subscription', candidate);
     if (error) throw error;
-    if (selectedSubscriptionRestaurant?.id !== restaurant.id) return;
-    loadedSubscription = data;
-    $('sub-start').value = data.starts_on || '';
-    $('sub-expiry').value = data.expires_on || '';
-    $('sub-payment').value = 'paid';
+    // The RPC committed successfully. Do not retry even if refreshing the UI fails.
+    resetRenewalAttempt();
+    const result = Array.isArray(data) ? data[0] : data;
+    status.textContent = result?.already_processed
+      ? 'This renewal was already processed; no duplicate payment was created.'
+      : 'Payment recorded and subscription renewed successfully!';
     $('renew-panel').hidden = true;
-    $('subscription-status').textContent = 'Subscription renewed successfully! Payment history is not recorded yet.';
-    await refreshRestaurants();
-  } catch(e) { status.textContent = 'Renewal failed: '+e.message; }
-  finally { btn.disabled = false; }
+    $('subscription-status').textContent = status.textContent;
+    const {data: updated, error: reloadError} = await db.from('restaurant_subscriptions')
+      .select('restaurant_id,plan_name,monthly_fee,currency,starts_on,expires_on,payment_status,notes')
+      .eq('restaurant_id', restaurant.id).single();
+    if (reloadError) { $('subscription-status').textContent += ' Refresh failed; reload the page to verify.'; }
+    else if (selectedSubscriptionRestaurant?.id === restaurant.id) {
+      loadedSubscription = updated;
+      $('sub-start').value = updated.starts_on || '';
+      $('sub-expiry').value = updated.expires_on || '';
+      $('sub-payment').value = updated.payment_status;
+    }
+    try { await refreshRestaurants(); } catch(e) { $('subscription-status').textContent += ' Billing refresh failed: '+e.message; }
+  } catch(e) {
+    status.textContent = 'Renewal not confirmed: '+e.message+'. Check Payment History and expiry before retrying. Keep the form unchanged to retry with the same request ID.';
+  } finally {
+    renewalSaving = false; btn.disabled = false;
+    $('renew-cancel').disabled = false;
+    $('close-subscription').disabled = false;
+  }
 });
 
 $('subscription-form').addEventListener('submit', async event => {
   event.preventDefault();
+  if (renewalSaving) return;
   const restaurant = selectedSubscriptionRestaurant;
   if (!restaurant) return;
   const plan_name = $('sub-plan').value.trim();
@@ -519,7 +576,7 @@ async function checkSession() {
   $('dashboard').hidden = true; $('login').hidden = false;
   $('branding-section').hidden = true; selectedRestaurant = null;
   ++subscriptionRequest; selectedSubscriptionRestaurant = null;
-  $('subscription-section').hidden = true;
+  $('subscription-section').hidden = true; resetRenewalAttempt();
   ++paymentRequest; selectedPaymentRestaurant = null; $('payment-section').hidden = true;
   const { data: { user }, error } = await db.auth.getUser();
   if (seq !== epoch) return;
