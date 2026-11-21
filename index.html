@@ -349,10 +349,10 @@
       async function applyRestaurantBranding() {
         // Menu context may only include id/name; fetch the full branding record.
         const context = window.NOSH_ACTIVE_RESTAURANT;
-        if (!context?.id || !window.menuDb) return false;
+        if (!context?.id || typeof window.createNoshClient !== 'function') return false;
         let restaurant = context;
         try {
-          const { data, error } = await window.menuDb
+          const { data, error } = await window.createNoshClient()
             .from('restaurants')
             .select('id,name,slug,logo_url,primary_color,secondary_color')
             .eq('id', context.id)
