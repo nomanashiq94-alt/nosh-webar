@@ -124,11 +124,139 @@ async function refreshRestaurants() {
     subscription.type = 'button'; subscription.className = 'restaurant-edit';
     subscription.textContent = 'Manage Subscription';
     subscription.addEventListener('click', () => openSubscription(r));
-    li.append(strong, small, edit, manage, subscription); list.append(li);
+    const payments = document.createElement('button');
+    payments.type = 'button'; payments.className = 'restaurant-edit';
+    payments.textContent = 'Payment History';
+    payments.addEventListener('click', () => openPayments(r));
+    li.append(strong, small, edit, manage, subscription, payments); list.append(li);
   }
   await refreshBillingOverview(data || []);
   if (!data.length) { const li = document.createElement('li'); li.textContent = 'No restaurants yet.'; list.append(li); }
 }
+
+// Step 51.5.2: manual received-payment records (not coupled to renewal).
+let selectedPaymentRestaurant = null;
+let paymentRequest = 0;
+let paymentSaving = false;
+const paymentMethods = {
+  cash: 'Cash', bank_transfer: 'Bank Transfer', jazzcash: 'JazzCash',
+  easypaisa: 'Easypaisa', other: 'Other'
+};
+function formatMoney(amount, currency) {
+  return (currency || 'PKR') + ' ' + Number(amount).toLocaleString('en-PK', {
+    minimumFractionDigits: 2, maximumFractionDigits: 2
+  });
+}
+async function openPayments(restaurant) {
+  const request = ++paymentRequest;
+  selectedPaymentRestaurant = null;
+  $('payment-section').hidden = true;
+  $('payment-status').textContent = 'Loading payment history…';
+  $('payment-restaurant').textContent = 'Restaurant: ' + restaurant.name + ' (' + restaurant.slug + ')';
+  $('payment-form').reset();
+  $('payment-date').value = pakistanToday();
+  $('payment-rows').replaceChildren();
+  $('payment-totals').replaceChildren();
+  try {
+    const { data, error } = await db.from('restaurant_payments')
+      .select('id,amount,currency,payment_method,payment_date,transaction_reference,notes,created_at')
+      .eq('restaurant_id', restaurant.id)
+      .order('payment_date', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(1000);
+    if (error) throw error;
+    if (request !== paymentRequest) return;
+    selectedPaymentRestaurant = restaurant;
+    renderPayments(data || []);
+    $('payment-status').textContent = '';
+    $('payment-section').hidden = false;
+    $('payment-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } catch (error) {
+    if (request === paymentRequest) message('Could not load payments: ' + error.message);
+  }
+}
+function renderPayments(payments) {
+  const totals = {};
+  for (const p of payments) totals[p.currency] = (totals[p.currency] || 0) + Number(p.amount);
+  const summary = $('payment-totals'); summary.replaceChildren();
+  const stats = [['Payments displayed', payments.length],
+    ...Object.entries(totals).map(([currency, amount]) => ['Total displayed (' + currency + ')', formatMoney(amount, currency)])];
+  for (const [name, value] of stats) {
+    const card = document.createElement('div'); card.className = 'billing-stat';
+    const label = document.createElement('small'); label.textContent = name;
+    const strong = document.createElement('strong'); strong.textContent = String(value);
+    card.append(label, strong); summary.append(card);
+  }
+  const rows = $('payment-rows'); rows.replaceChildren();
+  if (!payments.length) {
+    const tr = document.createElement('tr'); const td = document.createElement('td');
+    td.colSpan = 5; td.textContent = 'No received payments recorded yet.';
+    tr.append(td); rows.append(tr); return;
+  }
+  for (const p of payments) {
+    const tr = document.createElement('tr');
+    for (const value of [p.payment_date, formatMoney(p.amount,p.currency),
+      paymentMethods[p.payment_method] || p.payment_method,
+      p.transaction_reference || '—', p.notes || '—']) {
+      const td = document.createElement('td'); td.textContent = value; tr.append(td);
+    }
+    rows.append(tr);
+  }
+}
+$('payment-close').addEventListener('click', () => {
+  if (paymentSaving) return;
+  ++paymentRequest;
+  selectedPaymentRestaurant = null;
+  $('payment-section').hidden = true;
+});
+$('payment-form').addEventListener('submit', async event => {
+  event.preventDefault();
+  if (paymentSaving || !selectedPaymentRestaurant) return;
+  const restaurant = selectedPaymentRestaurant;
+  const amount = Number($('payment-amount').value);
+  const currency = $('payment-currency').value;
+  const payment_method = $('payment-method').value;
+  const payment_date = $('payment-date').value;
+  const transaction_reference = $('payment-reference').value.trim() || null;
+  const notes = $('payment-notes').value.trim() || null;
+  const status = $('payment-status');
+  if (!Number.isFinite(amount) || amount <= 0 || amount > 9999999999.99 ||
+      !['PKR','USD'].includes(currency) || !Object.hasOwn(paymentMethods,payment_method) ||
+      !/^\d{4}-\d{2}-\d{2}$/.test(payment_date) || payment_date > pakistanToday()) {
+    status.textContent = 'Enter a valid amount, payment method and non-future date.'; return;
+  }
+  if (!confirm('Record received payment of ' + formatMoney(amount,currency) +
+    ' for ' + restaurant.name + '? This cannot be edited here.')) return;
+  paymentSaving = true; $('payment-save').disabled = true;
+  status.textContent = 'Recording payment…';
+  try {
+    const { data: auth, error: authError } = await db.auth.getUser();
+    if (authError || !auth?.user) throw new Error('Sign in again before recording a payment.');
+    const { error } = await db.from('restaurant_payments').insert({
+      restaurant_id: restaurant.id, amount, currency, payment_method, payment_date,
+      transaction_reference, notes, created_by: auth.user.id
+    });
+    if (error) throw error;
+    // Payment was saved; do not offer retry if a subsequent refresh fails.
+    status.textContent = 'Payment recorded successfully! Subscription expiry was not changed.';
+    $('payment-amount').value = '';
+    $('payment-method').value = '';
+    $('payment-reference').value = '';
+    $('payment-notes').value = '';
+    const { data: refreshed, error: refreshError } = await db.from('restaurant_payments')
+      .select('id,amount,currency,payment_method,payment_date,transaction_reference,notes,created_at')
+      .eq('restaurant_id', restaurant.id)
+      .order('payment_date', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(1000);
+    if (refreshError) {
+      status.textContent += ' Refresh failed: ' + refreshError.message + '. Do not submit again; reload history.';
+    } else if (selectedPaymentRestaurant?.id === restaurant.id) {
+      renderPayments(refreshed || []);
+    }
+  } catch (error) { status.textContent = 'Payment not confirmed: ' + error.message + '. Check history before retrying.'; }
+  finally { paymentSaving = false; $('payment-save').disabled = false; }
+});
 
 async function openBranding(id) {
   $('branding-section').hidden = true;
@@ -392,6 +520,7 @@ async function checkSession() {
   $('branding-section').hidden = true; selectedRestaurant = null;
   ++subscriptionRequest; selectedSubscriptionRestaurant = null;
   $('subscription-section').hidden = true;
+  ++paymentRequest; selectedPaymentRestaurant = null; $('payment-section').hidden = true;
   const { data: { user }, error } = await db.auth.getUser();
   if (seq !== epoch) return;
   if (error || !user) { message('Sign in with your existing admin account.'); return; }
