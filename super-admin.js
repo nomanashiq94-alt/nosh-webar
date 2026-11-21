@@ -9,10 +9,10 @@ const fallbackSecondary = '#fbbf24';
 const validColor = (v, fallback) => /^#[0-9a-f]{6}$/i.test(v || '') ? v : fallback;
 
 // Step 51.7.2: status is calculated by the Supabase security-invoker view.
-// Monitor-only: this dashboard never changes restaurant access.
+// Subscription access is configured separately per restaurant.
 const subscriptionStatusLabels = {
   active: 'Active', expiring_soon: 'Expiring Soon', grace_period: 'Grace Period',
-  suspended: 'Suspended (monitor only)', not_configured: 'Not Configured',
+  suspended: 'Suspended', not_configured: 'Not Configured',
   no_expiry: 'No Expiry Set', not_started: 'Not Started'
 };
 function statusBadge(code) {
@@ -28,7 +28,7 @@ async function refreshBillingOverview(restaurants) {
   const errorBox = $('billing-error');
   errorBox.textContent = '';
   const { data, error } = await db.from('restaurant_subscription_status')
-    .select('restaurant_id,restaurant_name,plan_name,monthly_fee,currency,payment_status,expires_on,grace_period_days,subscription_status,days_until_expiry');
+    .select('restaurant_id,restaurant_name,plan_name,monthly_fee,currency,payment_status,expires_on,grace_period_days,access_mode,subscription_status,days_until_expiry');
   if (error) {
     summary.textContent = 'Subscription status records unavailable.';
     rows.replaceChildren(); alerts.replaceChildren();
@@ -53,7 +53,7 @@ async function refreshBillingOverview(restaurants) {
     ['Active', counts.active],
     ['Expiring soon', counts.expiring_soon],
     ['Grace period', counts.grace_period],
-    ['Suspended (monitor only)', counts.suspended],
+    ['Suspended', counts.suspended],
     ['Not configured / no expiry / not started', counts.not_configured + counts.no_expiry + counts.not_started],
     ['Paid / Unpaid / Overdue', `${configured.filter(s => s.payment_status === 'paid').length} / ${configured.filter(s => s.payment_status === 'unpaid').length} / ${configured.filter(s => s.payment_status === 'overdue').length}`],
     ['Expected monthly fees', expected]
@@ -96,6 +96,7 @@ async function refreshBillingOverview(restaurants) {
     const statusTd = document.createElement('td'); statusTd.append(statusBadge(s?.subscription_status || 'not_configured')); tr.append(statusTd);
     const expiryTd = document.createElement('td'); expiryTd.textContent = s?.expires_on || '—'; tr.append(expiryTd);
     const graceTd = document.createElement('td'); graceTd.textContent = s?.grace_period_days == null ? '—' : s.grace_period_days + ' days'; tr.append(graceTd);
+    const modeTd = document.createElement('td'); modeTd.textContent = s?.access_mode || '—'; tr.append(modeTd);
     const action = document.createElement('td');
     const button = document.createElement('button'); button.type = 'button';
     button.textContent = s?.plan_name ? 'Edit' : 'Set up';
@@ -110,7 +111,7 @@ async function refreshBillingOverview(restaurants) {
   }
   if (!restaurants.length) {
     const tr = document.createElement('tr'); const td = document.createElement('td');
-    td.colSpan = 8; td.textContent = 'No restaurants yet.'; tr.append(td); rows.append(tr);
+    td.colSpan = 9; td.textContent = 'No restaurants yet.'; tr.append(td); rows.append(tr);
   }
 }
 
@@ -423,7 +424,7 @@ async function openSubscription(restaurant, showRenew = false) {
   message('Loading subscription…');
   try {
     const { data, error } = await db.from('restaurant_subscriptions')
-      .select('restaurant_id,plan_name,monthly_fee,currency,starts_on,expires_on,payment_status,notes,grace_period_days')
+      .select('restaurant_id,plan_name,monthly_fee,currency,starts_on,expires_on,payment_status,notes,grace_period_days,access_mode')
       .eq('restaurant_id', restaurant.id).maybeSingle();
     if (error) throw error;
     if (request !== subscriptionRequest) return;
@@ -438,6 +439,15 @@ async function openSubscription(restaurant, showRenew = false) {
     $('sub-payment').value = ['paid','unpaid','overdue'].includes(data?.payment_status) ? data.payment_status : 'unpaid';
     $('sub-notes').value = data?.notes || '';
     $('sub-grace').value = data?.grace_period_days ?? 5;
+    $('sub-access-mode').value = data?.access_mode === 'enforce' ? 'enforce' : 'monitor';
+    $('access-saved-mode').textContent = data ? (data.access_mode === 'enforce' ? 'Enforce Subscription' : 'Monitor Only') : 'Not configured';
+    $('save-access-mode').disabled = !data;
+    $('access-status').textContent = data ? '' : 'Save subscription details first to configure access.';
+    $('access-current-status').textContent = 'Loading…';
+    const {data: liveStatus, error: liveError} = await db.from('restaurant_subscription_status')
+      .select('subscription_status').eq('restaurant_id', restaurant.id).maybeSingle();
+    if (request !== subscriptionRequest) return;
+    $('access-current-status').textContent = liveError ? 'Unavailable' : (subscriptionStatusLabels[liveStatus?.subscription_status] || 'Unknown');
     $('subscription-section').hidden = false;
     if (showRenew) prepareRenewal();
     $('subscription-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -525,7 +535,7 @@ $('renew-form').addEventListener('submit', async event => {
     $('renew-panel').hidden = true;
     $('subscription-status').textContent = status.textContent;
     const {data: updated, error: reloadError} = await db.from('restaurant_subscriptions')
-      .select('restaurant_id,plan_name,monthly_fee,currency,starts_on,expires_on,payment_status,notes,grace_period_days')
+      .select('restaurant_id,plan_name,monthly_fee,currency,starts_on,expires_on,payment_status,notes,grace_period_days,access_mode')
       .eq('restaurant_id', restaurant.id).single();
     if (reloadError) { $('subscription-status').textContent += ' Refresh failed; reload the page to verify.'; }
     else if (selectedSubscriptionRestaurant?.id === restaurant.id) {
@@ -544,9 +554,44 @@ $('renew-form').addEventListener('submit', async event => {
   }
 });
 
+// Access mode is saved separately to prevent accidental enforcement changes.
+let accessSaving = false;
+$('save-access-mode').addEventListener('click', async () => {
+  if (accessSaving || renewalSaving || !selectedSubscriptionRestaurant || !loadedSubscription) return;
+  const restaurant = selectedSubscriptionRestaurant;
+  const desired = $('sub-access-mode').value;
+  const status = $('access-status');
+  if (!['monitor','enforce'].includes(desired)) return;
+  if (desired === 'enforce') {
+    const warning = 'Enable subscription enforcement for ' + restaurant.name + '? If the subscription is suspended (expired beyond grace period), NEW customer orders will be BLOCKED immediately. Continue?';
+    if (!confirm(warning)) { $('sub-access-mode').value = loadedSubscription.access_mode === 'enforce' ? 'enforce' : 'monitor'; return; }
+  }
+  accessSaving = true;
+  $('save-access-mode').disabled = true;
+  status.textContent = 'Saving access mode…';
+  try {
+    const {data, error} = await db.from('restaurant_subscriptions')
+      .update({access_mode: desired, updated_at: new Date().toISOString()})
+      .eq('restaurant_id', restaurant.id)
+      .select('restaurant_id,access_mode').single();
+    if (error) throw error;
+    if (selectedSubscriptionRestaurant?.id === restaurant.id) {
+      loadedSubscription = {...loadedSubscription, access_mode: data.access_mode};
+      $('access-saved-mode').textContent = data.access_mode === 'enforce' ? 'Enforce Subscription' : 'Monitor Only';
+      status.textContent = 'Access mode saved successfully.';
+    }
+    await refreshRestaurants();
+  } catch (error) {
+    status.textContent = 'Could not confirm access mode save: ' + error.message + '. Reload to verify before retrying.';
+  } finally {
+    accessSaving = false;
+    $('save-access-mode').disabled = !loadedSubscription;
+  }
+});
+
 $('subscription-form').addEventListener('submit', async event => {
   event.preventDefault();
-  if (renewalSaving) return;
+  if (renewalSaving || accessSaving) return;
   const restaurant = selectedSubscriptionRestaurant;
   if (!restaurant) return;
   const plan_name = $('sub-plan').value.trim();
@@ -579,7 +624,13 @@ $('subscription-form').addEventListener('submit', async event => {
     const { error } = await db.from('restaurant_subscriptions')
       .upsert(payload, { onConflict: 'restaurant_id' });
     if (error) throw error;
-    loadedSubscription = {...payload};
+    loadedSubscription = {...loadedSubscription, ...payload};
+    $('save-access-mode').disabled = false;
+    if ($('access-saved-mode').textContent === 'Not configured') {
+      $('access-saved-mode').textContent = 'Monitor Only';
+      $('sub-access-mode').value = 'monitor';
+    }
+    $('access-status').textContent = '';
     $('renew-panel').hidden = true;
     status.textContent = 'Subscription saved successfully!';
     await refreshRestaurants();

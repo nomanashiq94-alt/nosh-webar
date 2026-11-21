@@ -5,7 +5,7 @@ body{font:16px system-ui;background:#101318;color:#f3f4f6;margin:0}main{max-widt
 </style></head>
 <body><main><h1>Nosh WebAR · Super Admin</h1><p id="message" role="status"></p><section id="login"><h2>Sign in</h2><form id="login-form"><label>Email <input id="email" type="email" required autocomplete="username"></label><label>Password <input id="password" type="password" required autocomplete="current-password"></label><button type="submit">Sign in</button></form></section>
 <div id="dashboard" hidden><button id="logout">Sign out</button><section><h2>Add restaurant</h2><form id="create-form"><label>Restaurant name <input id="name" maxlength="120" required placeholder="Pizza Hub"></label><label>URL slug <input id="slug" maxlength="60" required pattern="[a-z0-9]+(-[a-z0-9]+)*" placeholder="pizza-hub"></label><button type="submit">Create restaurant</button></form><small>New restaurant starts with an empty menu. Kitchen accounts are configured separately.</small></section>
-<section id="billing-overview"><h2>Billing Overview</h2><p class="hint">Live records from Supabase. Expected monthly fees are not payments received. Subscription statuses are calculated live in Supabase; payment status is tracked separately. Monitor-only: no automatic suspension.</p><div id="billing-summary" class="billing-grid"><div class="billing-stat">Loading billing records…</div></div><h3>Subscription Alerts</h3><p class="hint">Expiring, grace-period and suspended-status alerts. Status is informational; no automatic website suspension.</p><div id="billing-alerts" class="billing-alerts"></div><h3>Restaurant subscriptions</h3><div style="overflow-x:auto"><table class="billing-table"><thead><tr><th>Restaurant</th><th>Plan</th><th>Monthly fee</th><th>Payment</th><th>Subscription status</th><th>Expiry</th><th>Grace</th><th>Action</th></tr></thead><tbody id="billing-rows"><tr><td colspan="8">Loading…</td></tr></tbody></table></div><p id="billing-error" role="status" class="hint"></p></section>
+<section id="billing-overview"><h2>Billing Overview</h2><p class="hint">Live records from Supabase. Expected monthly fees are not payments received. Subscription statuses are calculated live in Supabase; payment status is tracked separately. Subscription enforcement is configurable per restaurant; suspended restaurants in enforce mode cannot receive new orders.</p><div id="billing-summary" class="billing-grid"><div class="billing-stat">Loading billing records…</div></div><h3>Subscription Alerts</h3><p class="hint">Expiring, grace-period and suspended-status alerts. Status is calculated automatically. Order blocking applies only when access mode is Enforce and status is Suspended.</p><div id="billing-alerts" class="billing-alerts"></div><h3>Restaurant subscriptions</h3><div style="overflow-x:auto"><table class="billing-table"><thead><tr><th>Restaurant</th><th>Plan</th><th>Monthly fee</th><th>Payment</th><th>Subscription status</th><th>Expiry</th><th>Grace</th><th>Access mode</th><th>Action</th></tr></thead><tbody id="billing-rows"><tr><td colspan="9">Loading…</td></tr></tbody></table></div><p id="billing-error" role="status" class="hint"></p></section>
 <section><h2>Restaurants</h2><button id="reload" type="button">Refresh list</button><ul id="restaurants"></ul></section>
 <section id="payment-section" hidden>
 <h2>Payment History</h2>
@@ -39,13 +39,23 @@ body{font:16px system-ui;background:#101318;color:#f3f4f6;margin:0}main{max-widt
 <label>Currency <select id="sub-currency"><option value="PKR">PKR</option><option value="USD">USD</option></select></label>
 <label>Subscription start date <input id="sub-start" type="date"></label>
 <label>Subscription expiry date <input id="sub-expiry" type="date"></label>
-<label>Grace period (days) <input id="sub-grace" type="number" min="0" max="30" step="1" value="5" required></label><p class="hint">Default 5 days after expiry. Changing this only affects monitoring status, not access to the restaurant website.</p><label>Payment status <select id="sub-payment"><option value="unpaid">Unpaid</option><option value="paid">Paid</option><option value="overdue">Overdue</option></select></label>
+<label>Grace period (days) <input id="sub-grace" type="number" min="0" max="30" step="1" value="5" required></label><p class="hint">Default 5 days after expiry. Changing grace days can affect ordering if Enforce mode is enabled.</p><label>Payment status <select id="sub-payment"><option value="unpaid">Unpaid</option><option value="paid">Paid</option><option value="overdue">Overdue</option></select></label>
 <label>Internal notes <textarea id="sub-notes" maxlength="2000" rows="3" style="display:block;width:min(100%,520px);background:#111827;color:white;border:1px solid #596273;border-radius:9px;padding:12px"></textarea></label>
-<p class="hint">Billing tracking only. Saving does not disable the restaurant website or collect payments automatically.</p>
+<p class="hint">Saving subscription details can affect ordering when Enforce mode is enabled. No payments are collected automatically.</p>
 <p id="subscription-status" role="status"></p>
 <button id="save-subscription" type="submit">Save subscription</button>
 <button id="close-subscription" type="button">Close</button>
 </form>
+<div class="renew-panel" id="access-control-panel">
+<h3>Subscription Access Control</h3>
+<p class="hint">Monitor Only never blocks orders. Enforce Subscription blocks new orders after expiry plus grace period. Existing orders remain available.</p>
+<p>Current subscription status: <strong id="access-current-status">Loading…</strong></p>
+<p>Current saved mode: <strong id="access-saved-mode">Loading…</strong></p>
+<label for="sub-access-mode">Order access mode</label>
+<select id="sub-access-mode"><option value="monitor">Monitor Only (orders always allowed)</option><option value="enforce">Enforce Subscription (block when suspended)</option></select>
+<p id="access-status" role="status"></p>
+<button id="save-access-mode" type="button">Save Access Mode</button>
+</div>
 <button id="start-renew" type="button">Renew Subscription</button>
 <div id="renew-panel" class="renew-panel" hidden>
 <h3>Renew subscription</h3>
