@@ -22,17 +22,16 @@ async function refreshRestaurants() {
     edit.className = 'restaurant-edit'; edit.textContent = 'Edit branding';
     edit.addEventListener('click', () => openBranding(r.id));
     const manage = document.createElement('button');
-manage.type = 'button';
-manage.className = 'restaurant-edit';
-manage.textContent = 'Manage Menu';
-
-manage.addEventListener('click', () => {
-  window.location.href =
-    'admin.html?restaurant_id=' + encodeURIComponent(r.id);
-});
-
-li.append(strong, small, edit, manage);
-list.append(li);
+    manage.type = 'button'; manage.className = 'restaurant-edit';
+    manage.textContent = 'Manage Menu';
+    manage.addEventListener('click', () => {
+      window.location.href = 'admin.html?restaurant_id=' + encodeURIComponent(r.id);
+    });
+    const subscription = document.createElement('button');
+    subscription.type = 'button'; subscription.className = 'restaurant-edit';
+    subscription.textContent = 'Manage Subscription';
+    subscription.addEventListener('click', () => openSubscription(r));
+    li.append(strong, small, edit, manage, subscription); list.append(li);
   }
   if (!data.length) { const li = document.createElement('li'); li.textContent = 'No restaurants yet.'; list.append(li); }
 }
@@ -140,10 +139,87 @@ $('branding-form').addEventListener('submit', async e => {
   finally { btn.disabled = false; }
 });
 
+let selectedSubscriptionRestaurant = null;
+let subscriptionRequest = 0;
+
+async function openSubscription(restaurant) {
+  const request = ++subscriptionRequest;
+  selectedSubscriptionRestaurant = null;
+  $('subscription-section').hidden = true;
+  $('subscription-status').textContent = '';
+  message('Loading subscription…');
+  try {
+    const { data, error } = await db.from('restaurant_subscriptions')
+      .select('restaurant_id,plan_name,monthly_fee,currency,starts_on,expires_on,payment_status,notes')
+      .eq('restaurant_id', restaurant.id).maybeSingle();
+    if (error) throw error;
+    if (request !== subscriptionRequest) return;
+    selectedSubscriptionRestaurant = restaurant;
+    $('subscription-restaurant').textContent = 'Restaurant: ' + restaurant.name + ' (' + restaurant.slug + ')';
+    $('sub-plan').value = data?.plan_name || 'Standard';
+    $('sub-fee').value = data?.monthly_fee ?? 0;
+    $('sub-currency').value = ['PKR','USD'].includes(data?.currency) ? data.currency : 'PKR';
+    $('sub-start').value = data?.starts_on || '';
+    $('sub-expiry').value = data?.expires_on || '';
+    $('sub-payment').value = ['paid','unpaid','overdue'].includes(data?.payment_status) ? data.payment_status : 'unpaid';
+    $('sub-notes').value = data?.notes || '';
+    $('subscription-section').hidden = false;
+    $('subscription-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    message('Subscription settings loaded.');
+  } catch (err) {
+    if (request === subscriptionRequest) message('Could not load subscription: ' + err.message);
+  }
+}
+
+$('close-subscription').addEventListener('click', () => {
+  ++subscriptionRequest;
+  selectedSubscriptionRestaurant = null;
+  $('subscription-section').hidden = true;
+});
+
+$('subscription-form').addEventListener('submit', async event => {
+  event.preventDefault();
+  const restaurant = selectedSubscriptionRestaurant;
+  if (!restaurant) return;
+  const plan_name = $('sub-plan').value.trim();
+  const monthly_fee = Number($('sub-fee').value);
+  const starts_on = $('sub-start').value || null;
+  const expires_on = $('sub-expiry').value || null;
+  const status = $('subscription-status');
+  if (!plan_name || !Number.isFinite(monthly_fee) || monthly_fee < 0 || monthly_fee > 999999999) {
+    status.textContent = 'Enter a valid plan name and monthly fee.'; return;
+  }
+  if (starts_on && expires_on && expires_on < starts_on) {
+    status.textContent = 'Expiry date cannot be before start date.'; return;
+  }
+  const button = $('save-subscription'); button.disabled = true;
+  status.textContent = 'Saving subscription…';
+  try {
+    const payload = {
+      restaurant_id: restaurant.id,
+      plan_name, monthly_fee,
+      currency: $('sub-currency').value,
+      starts_on, expires_on,
+      payment_status: $('sub-payment').value,
+      notes: $('sub-notes').value.trim() || null,
+      updated_at: new Date().toISOString()
+    };
+    const { error } = await db.from('restaurant_subscriptions')
+      .upsert(payload, { onConflict: 'restaurant_id' });
+    if (error) throw error;
+    status.textContent = 'Subscription saved successfully!';
+    message('Subscription updated for ' + restaurant.name + '.');
+  } catch (err) {
+    status.textContent = 'Could not save subscription: ' + err.message;
+  } finally { button.disabled = false; }
+});
+
 async function checkSession() {
   const seq = ++epoch;
   $('dashboard').hidden = true; $('login').hidden = false;
   $('branding-section').hidden = true; selectedRestaurant = null;
+  ++subscriptionRequest; selectedSubscriptionRestaurant = null;
+  $('subscription-section').hidden = true;
   const { data: { user }, error } = await db.auth.getUser();
   if (seq !== epoch) return;
   if (error || !user) { message('Sign in with your existing admin account.'); return; }
