@@ -174,7 +174,23 @@ async function adminSession(session){
     adminAuthorized=true;
     document.getElementById('admin-restaurant-wrap').classList.remove('hidden');
     document.getElementById('admin-tools').classList.remove('hidden');
-    await chooseAdminRestaurant(restaurants[0].id);
+    const requestedId = new URLSearchParams(
+  window.location.search
+).get('restaurant_id');
+
+const selected = restaurants.find(
+  restaurant => restaurant.id === requestedId
+);
+
+if (requestedId && !selected) {
+  adminMessage('You do not have access to the requested restaurant.');
+  return;
+}
+
+const targetId = selected ? selected.id : restaurants[0].id;
+
+select.value = targetId;
+await chooseAdminRestaurant(targetId);
   } catch (error) {
     if (epoch === adminEpoch) adminMessage(error.message);
   } finally {
