@@ -346,9 +346,26 @@
     (function () {
       const validColor = (value, fallback) => /^#[0-9a-fA-F]{6}$/.test(value || '') ? value : fallback;
       let lastBrandKey = '';
-      function applyRestaurantBranding() {
-        const restaurant = window.NOSH_ACTIVE_RESTAURANT;
-        if (!restaurant?.id) return false;
+      async function applyRestaurantBranding() {
+        // Menu context may only include id/name; fetch the full branding record.
+        const context = window.NOSH_ACTIVE_RESTAURANT;
+        if (!context?.id || !window.menuDb) return false;
+        let restaurant = context;
+        try {
+          const { data, error } = await window.menuDb
+            .from('restaurants')
+            .select('id,name,slug,logo_url,primary_color,secondary_color')
+            .eq('id', context.id)
+            .eq('status', 'active')
+            .single();
+          if (error || !data) throw error || new Error('Restaurant branding not found');
+          // Guard against a restaurant switch while the request was in flight.
+          if (window.NOSH_ACTIVE_RESTAURANT?.id !== data.id) return false;
+          restaurant = data;
+        } catch (error) {
+          console.warn('Branding lookup failed; retrying:', error);
+          return false;
+        }
         const primary = validColor(restaurant.primary_color, '#f59e0b');
         const secondary = validColor(restaurant.secondary_color, '#fb923c');
         const name = String(restaurant.name || 'Restaurant').slice(0, 80);
@@ -389,8 +406,12 @@
       window.addEventListener('DOMContentLoaded', () => {
         // The restaurant is resolved asynchronously by menu-cloud.js.
         let attempts = 0;
-        const timer = setInterval(() => {
-          if (applyRestaurantBranding() || ++attempts >= 60) clearInterval(timer);
+        const timer = setInterval(async () => {
+          if (timer.busy) return;
+          timer.busy = true;
+          try {
+            if (await applyRestaurantBranding() || ++attempts >= 60) clearInterval(timer);
+          } finally { timer.busy = false; }
         }, 500);
       });
     })();
