@@ -8,30 +8,40 @@ const fallbackPrimary = '#f59e0b';
 const fallbackSecondary = '#fbbf24';
 const validColor = (v, fallback) => /^#[0-9a-f]{6}$/i.test(v || '') ? v : fallback;
 
-// Billing overview: display only; no automatic subscription suspension.
+// Step 51.7.2: status is calculated by the Supabase security-invoker view.
+// Monitor-only: this dashboard never changes restaurant access.
+const subscriptionStatusLabels = {
+  active: 'Active', expiring_soon: 'Expiring Soon', grace_period: 'Grace Period',
+  suspended: 'Suspended (monitor only)', not_configured: 'Not Configured',
+  no_expiry: 'No Expiry Set', not_started: 'Not Started'
+};
+function statusBadge(code) {
+  const span = document.createElement('span');
+  span.className = 'status-pill status-' + (Object.hasOwn(subscriptionStatusLabels, code) ? code : 'not_configured');
+  span.textContent = subscriptionStatusLabels[code] || 'Unknown';
+  return span;
+}
 async function refreshBillingOverview(restaurants) {
   const summary = $('billing-summary');
   const rows = $('billing-rows');
+  const alerts = $('billing-alerts');
   const errorBox = $('billing-error');
   errorBox.textContent = '';
-  const { data, error } = await db.from('restaurant_subscriptions')
-    .select('restaurant_id,plan_name,monthly_fee,currency,expires_on,payment_status');
+  const { data, error } = await db.from('restaurant_subscription_status')
+    .select('restaurant_id,restaurant_name,plan_name,monthly_fee,currency,payment_status,expires_on,grace_period_days,subscription_status,days_until_expiry');
   if (error) {
-    summary.textContent = 'Billing records unavailable.';
-    rows.replaceChildren();
-    errorBox.textContent = 'Could not load billing: ' + error.message;
+    summary.textContent = 'Subscription status records unavailable.';
+    rows.replaceChildren(); alerts.replaceChildren();
+    errorBox.textContent = 'Could not load subscription status: ' + error.message;
     return;
   }
   const subs = data || [];
   const byId = new Map(subs.map(s => [s.restaurant_id, s]));
-  const today = pakistanToday();
-  const paid = subs.filter(s => s.payment_status === 'paid').length;
-  const unpaid = subs.filter(s => s.payment_status === 'unpaid').length;
-  const overdue = subs.filter(s => s.payment_status === 'overdue').length;
-  const expired = subs.filter(s => s.expires_on && s.expires_on < today).length;
-  const soon = subs.filter(s => s.expires_on && s.expires_on >= today && daysBetween(today, s.expires_on) <= 7).length;
+  const configured = subs.filter(s => s.subscription_status !== 'not_configured');
+  const counts = Object.fromEntries(Object.keys(subscriptionStatusLabels).map(k => [k, 0]));
+  for (const s of subs) if (Object.hasOwn(counts, s.subscription_status)) counts[s.subscription_status]++;
   const totals = {};
-  for (const s of subs) {
+  for (const s of configured) {
     const currency = s.currency || 'PKR';
     totals[currency] = (totals[currency] || 0) + Number(s.monthly_fee || 0);
   }
@@ -39,10 +49,13 @@ async function refreshBillingOverview(restaurants) {
     currency + ' ' + amount.toLocaleString('en-PK', {maximumFractionDigits:2})).join(' / ') || '—';
   const stats = [
     ['Total restaurants', restaurants.length],
-    ['Subscriptions recorded', subs.length],
-    ['Paid / Unpaid / Overdue', `${paid} / ${unpaid} / ${overdue}`],
-    ['Expired dates', expired],
-    ['Expiring in 7 days', soon],
+    ['Subscriptions configured', configured.length],
+    ['Active', counts.active],
+    ['Expiring soon', counts.expiring_soon],
+    ['Grace period', counts.grace_period],
+    ['Suspended (monitor only)', counts.suspended],
+    ['Not configured / no expiry / not started', counts.not_configured + counts.no_expiry + counts.not_started],
+    ['Paid / Unpaid / Overdue', `${configured.filter(s => s.payment_status === 'paid').length} / ${configured.filter(s => s.payment_status === 'unpaid').length} / ${configured.filter(s => s.payment_status === 'overdue').length}`],
     ['Expected monthly fees', expected]
   ];
   summary.replaceChildren();
@@ -52,52 +65,52 @@ async function refreshBillingOverview(restaurants) {
     const val = document.createElement('strong'); val.textContent = String(value);
     card.append(name, val); summary.append(card);
   }
-  const alerts = $('billing-alerts');
   alerts.replaceChildren();
+  const alertCodes = new Set(['expiring_soon','grace_period','suspended']);
   const alertsData = restaurants.map(r => ({r, s:byId.get(r.id)}))
-    .filter(({s}) => s?.expires_on && daysBetween(today,s.expires_on) <= 7)
-    .sort((a,b) => a.s.expires_on.localeCompare(b.s.expires_on));
-  if (!alertsData.length) alerts.textContent = 'No subscriptions expiring within 7 days or already expired.';
+    .filter(({s}) => s && alertCodes.has(s.subscription_status))
+    .sort((a,b) => (a.s.days_until_expiry ?? 999999) - (b.s.days_until_expiry ?? 999999));
+  if (!alertsData.length) alerts.textContent = 'No expiring-soon, grace-period or suspended-status subscriptions.';
   for (const {r,s} of alertsData) {
-    const days = daysBetween(today,s.expires_on);
-    const alert = document.createElement('div'); alert.className = 'billing-alert';
+    const alert = document.createElement('div');
+    alert.className = 'billing-alert status-' + s.subscription_status;
     const title = document.createElement('strong'); title.textContent = r.name;
     const desc = document.createElement('span');
-    desc.className = days < 0 ? 'billing-warning' : '';
-    desc.textContent = (days < 0 ? 'Expired '+(-days)+' day(s) ago' : days === 0 ? 'Expires today' : 'Expires in '+days+' day(s)') + ' · '+s.expires_on+' · payment: '+s.payment_status;
-    const button = document.createElement('button'); button.type = 'button'; button.textContent = 'Renew';
+    const days = s.days_until_expiry;
+    desc.textContent = (days < 0 ? 'Expired ' + (-days) + ' day(s) ago' : days === 0 ? 'Expires today' : 'Expires in ' + days + ' day(s)') +
+      ' · expiry: ' + s.expires_on + ' · grace: ' + s.grace_period_days + ' day(s) · payment: ' + s.payment_status;
+    const button = document.createElement('button'); button.type = 'button'; button.textContent = 'Manage / Renew';
     button.addEventListener('click', () => openSubscription(r, true));
-    alert.append(title,desc,document.createElement('div'),button); alerts.append(alert);
+    alert.append(title, statusBadge(s.subscription_status), document.createElement('div'), desc, document.createElement('div'), button);
+    alerts.append(alert);
   }
   rows.replaceChildren();
   for (const restaurant of restaurants) {
-    const sub = byId.get(restaurant.id);
+    const s = byId.get(restaurant.id);
     const tr = document.createElement('tr');
-    const expiredDate = Boolean(sub?.expires_on && sub.expires_on < today);
-    const values = [restaurant.name, sub?.plan_name || 'Not set',
-      sub ? (sub.currency || 'PKR') + ' ' + Number(sub.monthly_fee).toLocaleString('en-PK') : '—',
-      sub ? sub.payment_status : 'Not set',
-      sub?.expires_on ? sub.expires_on + (expiredDate ? ' (Expired)' : '') : '—'];
-    for (const [index, value] of values.entries()) {
-      const td = document.createElement('td'); td.textContent = value;
-      if (index === 4 && expiredDate) td.className = 'billing-warning';
-      tr.append(td);
+    for (const value of [restaurant.name, s?.plan_name || 'Not set',
+      s?.plan_name ? (s.currency || 'PKR') + ' ' + Number(s.monthly_fee).toLocaleString('en-PK') : '—',
+      s?.payment_status || 'Not set']) {
+      const td = document.createElement('td'); td.textContent = value; tr.append(td);
     }
+    const statusTd = document.createElement('td'); statusTd.append(statusBadge(s?.subscription_status || 'not_configured')); tr.append(statusTd);
+    const expiryTd = document.createElement('td'); expiryTd.textContent = s?.expires_on || '—'; tr.append(expiryTd);
+    const graceTd = document.createElement('td'); graceTd.textContent = s?.grace_period_days == null ? '—' : s.grace_period_days + ' days'; tr.append(graceTd);
     const action = document.createElement('td');
     const button = document.createElement('button'); button.type = 'button';
-    button.textContent = sub ? 'Edit' : 'Set up';
+    button.textContent = s?.plan_name ? 'Edit' : 'Set up';
     button.addEventListener('click', () => openSubscription(restaurant));
     action.append(button);
-    if (sub) {
+    if (s?.plan_name) {
       const renew = document.createElement('button'); renew.type = 'button';
-      renew.textContent = 'Renew'; renew.addEventListener('click', () => openSubscription(restaurant,true));
+      renew.textContent = 'Renew'; renew.addEventListener('click', () => openSubscription(restaurant, true));
       action.append(renew);
     }
     tr.append(action); rows.append(tr);
   }
   if (!restaurants.length) {
     const tr = document.createElement('tr'); const td = document.createElement('td');
-    td.colSpan = 6; td.textContent = 'No restaurants yet.'; tr.append(td); rows.append(tr);
+    td.colSpan = 8; td.textContent = 'No restaurants yet.'; tr.append(td); rows.append(tr);
   }
 }
 
@@ -410,7 +423,7 @@ async function openSubscription(restaurant, showRenew = false) {
   message('Loading subscription…');
   try {
     const { data, error } = await db.from('restaurant_subscriptions')
-      .select('restaurant_id,plan_name,monthly_fee,currency,starts_on,expires_on,payment_status,notes')
+      .select('restaurant_id,plan_name,monthly_fee,currency,starts_on,expires_on,payment_status,notes,grace_period_days')
       .eq('restaurant_id', restaurant.id).maybeSingle();
     if (error) throw error;
     if (request !== subscriptionRequest) return;
@@ -424,6 +437,7 @@ async function openSubscription(restaurant, showRenew = false) {
     $('sub-expiry').value = data?.expires_on || '';
     $('sub-payment').value = ['paid','unpaid','overdue'].includes(data?.payment_status) ? data.payment_status : 'unpaid';
     $('sub-notes').value = data?.notes || '';
+    $('sub-grace').value = data?.grace_period_days ?? 5;
     $('subscription-section').hidden = false;
     if (showRenew) prepareRenewal();
     $('subscription-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -511,7 +525,7 @@ $('renew-form').addEventListener('submit', async event => {
     $('renew-panel').hidden = true;
     $('subscription-status').textContent = status.textContent;
     const {data: updated, error: reloadError} = await db.from('restaurant_subscriptions')
-      .select('restaurant_id,plan_name,monthly_fee,currency,starts_on,expires_on,payment_status,notes')
+      .select('restaurant_id,plan_name,monthly_fee,currency,starts_on,expires_on,payment_status,notes,grace_period_days')
       .eq('restaurant_id', restaurant.id).single();
     if (reloadError) { $('subscription-status').textContent += ' Refresh failed; reload the page to verify.'; }
     else if (selectedSubscriptionRestaurant?.id === restaurant.id) {
@@ -539,9 +553,13 @@ $('subscription-form').addEventListener('submit', async event => {
   const monthly_fee = Number($('sub-fee').value);
   const starts_on = $('sub-start').value || null;
   const expires_on = $('sub-expiry').value || null;
+  const grace_period_days = Number($('sub-grace').value);
   const status = $('subscription-status');
   if (!plan_name || !Number.isFinite(monthly_fee) || monthly_fee < 0 || monthly_fee > 999999999) {
     status.textContent = 'Enter a valid plan name and monthly fee.'; return;
+  }
+  if (!Number.isInteger(grace_period_days) || grace_period_days < 0 || grace_period_days > 30) {
+    status.textContent = 'Grace period must be a whole number between 0 and 30.'; return;
   }
   if (starts_on && expires_on && expires_on < starts_on) {
     status.textContent = 'Expiry date cannot be before start date.'; return;
@@ -553,7 +571,7 @@ $('subscription-form').addEventListener('submit', async event => {
       restaurant_id: restaurant.id,
       plan_name, monthly_fee,
       currency: $('sub-currency').value,
-      starts_on, expires_on,
+      starts_on, expires_on, grace_period_days,
       payment_status: $('sub-payment').value,
       notes: $('sub-notes').value.trim() || null,
       updated_at: new Date().toISOString()
