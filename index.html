@@ -279,64 +279,73 @@
     <span id="toast-message">Item added to cart!</span>
   </div>
 
-  <!-- Per-restaurant branding; reads the same restaurant resolved by menu-cloud.js. -->
+  <!-- Restaurant theme: Supabase branding, independent of menu query columns. -->
   <style id="restaurant-brand-styles">
-    :root { --restaurant-primary: #f59e0b; --restaurant-secondary: #fb923c; }
-    .brand-primary-bg { background-color: var(--restaurant-primary) !important; }
-    .brand-primary-text { color: var(--restaurant-primary) !important; }
-    .brand-primary-border { border-color: var(--restaurant-primary) !important; }
-    .brand-gradient { background-image: linear-gradient(90deg, var(--restaurant-primary), var(--restaurant-secondary)) !important; }
-    .bg-amber-500 { background-color: var(--restaurant-primary) !important; }
-    .text-amber-400, .text-amber-300 { color: var(--restaurant-primary) !important; }
+    :root { --restaurant-primary: #f59e0b; --restaurant-secondary: #fb923c; --restaurant-contrast: #0f172a; }
+    .bg-amber-500, .hover\:bg-amber-500:hover, .hover\:bg-amber-400:hover { background-color: var(--restaurant-primary) !important; }
+    .text-amber-400, .text-amber-300, .hover\:text-amber-400:hover { color: var(--restaurant-primary) !important; }
     .border-amber-500 { border-color: var(--restaurant-primary) !important; }
-    .from-amber-500 { --tw-gradient-from: var(--restaurant-primary) var(--tw-gradient-from-position) !important; --tw-gradient-to: rgb(245 158 11 / 0) var(--tw-gradient-to-position) !important; }
-    .to-orange-500 { --tw-gradient-to: var(--restaurant-secondary) var(--tw-gradient-to-position) !important; }
-    .ar-button { background-color: var(--restaurant-primary) !important; }
+    .from-amber-500, .from-amber-500\/10 { --tw-gradient-from: var(--restaurant-primary) var(--tw-gradient-from-position) !important; --tw-gradient-to: transparent var(--tw-gradient-to-position) !important; }
+    .to-orange-500, .to-amber-500 { --tw-gradient-to: var(--restaurant-secondary) var(--tw-gradient-to-position) !important; }
+    .via-orange-500\/10 { --tw-gradient-via: color-mix(in srgb, var(--restaurant-secondary) 10%, transparent) var(--tw-gradient-via-position) !important; }
+    .to-amber-500\/5 { --tw-gradient-to: color-mix(in srgb, var(--restaurant-primary) 5%, transparent) var(--tw-gradient-to-position) !important; }
     .bg-amber-500\/10 { background-color: color-mix(in srgb, var(--restaurant-primary) 10%, transparent) !important; }
     .bg-amber-500\/20 { background-color: color-mix(in srgb, var(--restaurant-primary) 20%, transparent) !important; }
+    .border-amber-500\/20 { border-color: color-mix(in srgb, var(--restaurant-primary) 20%, transparent) !important; }
     .border-amber-500\/30 { border-color: color-mix(in srgb, var(--restaurant-primary) 30%, transparent) !important; }
-
+    .shadow-amber-500\/10, .shadow-amber-500\/20, .shadow-amber-500\/25 { --tw-shadow-color: color-mix(in srgb, var(--restaurant-primary) 20%, transparent); }
+    .shadow-orange-500\/20 { --tw-shadow-color: color-mix(in srgb, var(--restaurant-secondary) 20%, transparent); }
+    .ar-button { background-color: var(--restaurant-primary) !important; color: var(--restaurant-contrast) !important; }
+    .bg-amber-500, .hover\:bg-amber-500:hover, .hover\:bg-amber-400:hover,
+    .from-amber-500, .ar-button { color: var(--restaurant-contrast) !important; }
   </style>
   <script>
     (function () {
       const validColor = (value, fallback) => /^#[0-9a-fA-F]{6}$/.test(value || '') ? value : fallback;
-      let lastBrandKey = '';
-      function applyRestaurantBranding() {
-        const restaurant = window.NOSH_ACTIVE_RESTAURANT;
-        if (!restaurant?.id) return false;
+      let currentRestaurantId = '', lastBrandKey = '', busy = false;
+      function setBrand(restaurant) {
         const primary = validColor(restaurant.primary_color, '#f59e0b');
         const secondary = validColor(restaurant.secondary_color, '#fb923c');
         const name = String(restaurant.name || 'Restaurant').slice(0, 80);
         const logo = typeof restaurant.logo_url === 'string' && /^https:\/\//i.test(restaurant.logo_url) ? restaurant.logo_url : '';
         const key = [restaurant.id, name, primary, secondary, logo].join('|');
-        if (key === lastBrandKey) return true;
+        if (key === lastBrandKey) return;
         lastBrandKey = key;
         document.documentElement.style.setProperty('--restaurant-primary', primary);
         document.documentElement.style.setProperty('--restaurant-secondary', secondary);
+        const rgb = [1, 3, 5].map(i => parseInt(primary.slice(i, i + 2), 16) / 255).map(v => v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4);
+        document.documentElement.style.setProperty('--restaurant-contrast', rgb[0] * .2126 + rgb[1] * .7152 + rgb[2] * .0722 > .179 ? '#0f172a' : '#ffffff');
         document.getElementById('restaurant-brand-name').textContent = name;
         document.title = name + ' · Menu & Order';
         const icon = document.getElementById('restaurant-brand-icon');
-        icon.replaceChildren();
-        if (logo) {
-          const img = document.createElement('img');
-          img.alt = name + ' logo';
-          img.src = logo;
-          img.className = 'w-full h-full object-contain';
-          img.onerror = () => { icon.replaceChildren(); const fallback = document.createElement('i'); fallback.className = 'fa-solid fa-utensils text-lg'; icon.append(fallback); };
-          icon.append(img);
-        } else {
-          const fallback = document.createElement('i');
-          fallback.className = 'fa-solid fa-utensils text-lg';
-          icon.append(fallback);
-        }
-        return true;
+        const fallback = () => { icon.replaceChildren(); const i = document.createElement('i'); i.className = 'fa-solid fa-utensils text-lg'; icon.append(i); };
+        if (!logo) { fallback(); return; }
+        const img = document.createElement('img');
+        img.alt = name + ' logo'; img.src = logo; img.className = 'w-full h-full object-contain';
+        img.onerror = fallback;
+        icon.replaceChildren(img);
+      }
+      async function refreshBrand() {
+        const active = window.NOSH_ACTIVE_RESTAURANT;
+        if (!active?.id || busy || !window.menuDb && typeof menuDb === 'undefined') return;
+        if (active.id !== currentRestaurantId) { currentRestaurantId = active.id; lastBrandKey = ''; }
+        busy = true;
+        try {
+          const db = typeof menuDb !== 'undefined' && menuDb ? menuDb : window.createNoshClient();
+          const { data, error } = await db.from('restaurants')
+            .select('id,name,logo_url,primary_color,secondary_color').eq('id', active.id).single();
+          if (!error && data && window.NOSH_ACTIVE_RESTAURANT?.id === data.id) setBrand(data);
+          else if (error) console.warn('Restaurant branding unavailable:', error.message);
+        } catch (e) { console.warn('Restaurant branding unavailable:', e.message); }
+        finally { busy = false; }
       }
       window.addEventListener('DOMContentLoaded', () => {
-        // The restaurant is resolved asynchronously by menu-cloud.js.
-        let attempts = 0;
-        const timer = setInterval(() => {
-          if (applyRestaurantBranding() || ++attempts >= 60) clearInterval(timer);
-        }, 500);
+        const initial = setInterval(() => {
+          if (window.NOSH_ACTIVE_RESTAURANT?.id) { clearInterval(initial); refreshBrand(); }
+        }, 350);
+        setTimeout(() => clearInterval(initial), 30000);
+        setInterval(() => { if (!document.hidden) refreshBrand(); }, 30000);
+        document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshBrand(); });
       });
     })();
   </script>
