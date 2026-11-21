@@ -21,7 +21,18 @@ async function refreshRestaurants() {
     const edit = document.createElement('button'); edit.type = 'button';
     edit.className = 'restaurant-edit'; edit.textContent = 'Edit branding';
     edit.addEventListener('click', () => openBranding(r.id));
-    li.append(strong, small, edit); list.append(li);
+    const manage = document.createElement('button');
+manage.type = 'button';
+manage.className = 'restaurant-edit';
+manage.textContent = 'Manage Menu';
+
+manage.addEventListener('click', () => {
+  window.location.href =
+    'admin.html?restaurant_id=' + encodeURIComponent(r.id);
+});
+
+li.append(strong, small, edit, manage);
+list.append(li);
   }
   if (!data.length) { const li = document.createElement('li'); li.textContent = 'No restaurants yet.'; list.append(li); }
 }
