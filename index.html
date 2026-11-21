@@ -60,8 +60,26 @@
 <script src="supabase-config.js"></script>
 <script src="nosh-cloud.js"></script>
 <script src="restaurant-context.js"></script>
+  <!-- Keep the customer UI hidden until the correct restaurant branding is ready. -->
+  <style>
+    #restaurant-loading-screen { position: fixed; inset: 0; z-index: 99999; display: flex; align-items: center; justify-content: center; background: #020617; color: #f8fafc; font-family: Inter, sans-serif; padding: 24px; }
+    #restaurant-loading-screen .loading-panel { width: min(100%, 340px); text-align: center; }
+    #restaurant-loading-screen .loading-spinner { display: block; width: 34px; height: 34px; margin: 0 auto 20px; border: 3px solid #334155; border-top-color: #fbbf24; border-radius: 50%; animation: restaurant-spin .8s linear infinite; }
+    #restaurant-loading-screen .loading-title { font-size: 20px; font-weight: 700; margin-bottom: 8px; }
+    #restaurant-loading-screen .loading-detail { color: #94a3b8; font-size: 14px; line-height: 1.6; }
+    @keyframes restaurant-spin { to { transform: rotate(360deg); } }
+    #restaurant-loading-screen[hidden] { display: none !important; }
+  </style>
 </head>
 <body class="min-h-screen flex flex-col bg-slate-950 pb-20 sm:pb-0">
+  <div id="restaurant-loading-screen" role="status" aria-live="polite">
+    <div class="loading-panel">
+      <span class="loading-spinner" aria-hidden="true"></span>
+      <div class="loading-title">Loading restaurant…</div>
+      <div class="loading-detail">Preparing your menu</div>
+    </div>
+  </div>
+
 
   <!-- Header Section -->
   <header class="sticky top-0 z-30 bg-slate-900/90 backdrop-blur-md border-b border-slate-800">
@@ -401,6 +419,8 @@
           fallback.className = 'fa-solid fa-utensils text-lg';
           icon.append(fallback);
         }
+        const loadingScreen = document.getElementById('restaurant-loading-screen');
+        if (loadingScreen) loadingScreen.hidden = true;
         return true;
       }
       window.addEventListener('DOMContentLoaded', () => {
@@ -410,7 +430,18 @@
           if (timer.busy) return;
           timer.busy = true;
           try {
-            if (await applyRestaurantBranding() || ++attempts >= 60) clearInterval(timer);
+            if (await applyRestaurantBranding()) {
+              clearInterval(timer);
+            } else if (++attempts >= 30) {
+              clearInterval(timer);
+              const panel = document.querySelector('#restaurant-loading-screen .loading-panel');
+              if (panel) panel.innerHTML = '<div class="loading-title">Restaurant unavailable</div><div class="loading-detail">We could not load this restaurant. Please check the link and try refreshing the page.</div>';
+            }
+          } catch (error) {
+            console.error('Restaurant branding initialization failed:', error);
+            clearInterval(timer);
+            const panel = document.querySelector('#restaurant-loading-screen .loading-panel');
+            if (panel) panel.innerHTML = '<div class="loading-title">Unable to load restaurant</div><div class="loading-detail">Please refresh the page and try again.</div>';
           } finally { timer.busy = false; }
         }, 500);
       });
