@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Gourmet WebAR Menu & Order App</title>
+  <title>Nosh WebAR Menu</title>
   
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -67,11 +67,11 @@
   <header class="sticky top-0 z-30 bg-slate-900/90 backdrop-blur-md border-b border-slate-800">
     <div class="max-w-md mx-auto px-4 py-3.5 flex items-center justify-between">
       <div class="flex items-center space-x-3">
-        <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-500 flex items-center justify-center text-slate-950 font-bold shadow-lg shadow-orange-500/20">
+        <div id="restaurant-brand-icon" class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-500 flex items-center justify-center text-slate-950 font-bold shadow-lg shadow-orange-500/20 overflow-hidden">
           <i class="fa-solid fa-utensils text-lg"></i>
         </div>
         <div>
-          <h1 class="font-bold text-base leading-tight text-white">Nosh</h1>
+          <h1 id="restaurant-brand-name" class="font-bold text-base leading-tight text-white">Nosh</h1>
           <p class="text-[11px] text-amber-400 font-medium">Explore Menu · Order Fresh</p>
         </div>
       </div>
@@ -279,6 +279,67 @@
     <span id="toast-message">Item added to cart!</span>
   </div>
 
+  <!-- Per-restaurant branding; reads the same restaurant resolved by menu-cloud.js. -->
+  <style id="restaurant-brand-styles">
+    :root { --restaurant-primary: #f59e0b; --restaurant-secondary: #fb923c; }
+    .brand-primary-bg { background-color: var(--restaurant-primary) !important; }
+    .brand-primary-text { color: var(--restaurant-primary) !important; }
+    .brand-primary-border { border-color: var(--restaurant-primary) !important; }
+    .brand-gradient { background-image: linear-gradient(90deg, var(--restaurant-primary), var(--restaurant-secondary)) !important; }
+    .bg-amber-500 { background-color: var(--restaurant-primary) !important; }
+    .text-amber-400, .text-amber-300 { color: var(--restaurant-primary) !important; }
+    .border-amber-500 { border-color: var(--restaurant-primary) !important; }
+    .from-amber-500 { --tw-gradient-from: var(--restaurant-primary) var(--tw-gradient-from-position) !important; --tw-gradient-to: rgb(245 158 11 / 0) var(--tw-gradient-to-position) !important; }
+    .to-orange-500 { --tw-gradient-to: var(--restaurant-secondary) var(--tw-gradient-to-position) !important; }
+    .ar-button { background-color: var(--restaurant-primary) !important; }
+    .bg-amber-500\/10 { background-color: color-mix(in srgb, var(--restaurant-primary) 10%, transparent) !important; }
+    .bg-amber-500\/20 { background-color: color-mix(in srgb, var(--restaurant-primary) 20%, transparent) !important; }
+    .border-amber-500\/30 { border-color: color-mix(in srgb, var(--restaurant-primary) 30%, transparent) !important; }
+
+  </style>
+  <script>
+    (function () {
+      const validColor = (value, fallback) => /^#[0-9a-fA-F]{6}$/.test(value || '') ? value : fallback;
+      let lastBrandKey = '';
+      function applyRestaurantBranding() {
+        const restaurant = window.NOSH_ACTIVE_RESTAURANT;
+        if (!restaurant?.id) return false;
+        const primary = validColor(restaurant.primary_color, '#f59e0b');
+        const secondary = validColor(restaurant.secondary_color, '#fb923c');
+        const name = String(restaurant.name || 'Restaurant').slice(0, 80);
+        const logo = typeof restaurant.logo_url === 'string' && /^https:\/\//i.test(restaurant.logo_url) ? restaurant.logo_url : '';
+        const key = [restaurant.id, name, primary, secondary, logo].join('|');
+        if (key === lastBrandKey) return true;
+        lastBrandKey = key;
+        document.documentElement.style.setProperty('--restaurant-primary', primary);
+        document.documentElement.style.setProperty('--restaurant-secondary', secondary);
+        document.getElementById('restaurant-brand-name').textContent = name;
+        document.title = name + ' · Menu & Order';
+        const icon = document.getElementById('restaurant-brand-icon');
+        icon.replaceChildren();
+        if (logo) {
+          const img = document.createElement('img');
+          img.alt = name + ' logo';
+          img.src = logo;
+          img.className = 'w-full h-full object-contain';
+          img.onerror = () => { icon.replaceChildren(); const fallback = document.createElement('i'); fallback.className = 'fa-solid fa-utensils text-lg'; icon.append(fallback); };
+          icon.append(img);
+        } else {
+          const fallback = document.createElement('i');
+          fallback.className = 'fa-solid fa-utensils text-lg';
+          icon.append(fallback);
+        }
+        return true;
+      }
+      window.addEventListener('DOMContentLoaded', () => {
+        // The restaurant is resolved asynchronously by menu-cloud.js.
+        let attempts = 0;
+        const timer = setInterval(() => {
+          if (applyRestaurantBranding() || ++attempts >= 60) clearInterval(timer);
+        }, 500);
+      });
+    })();
+  </script>
   <!-- JavaScript Logic -->
   <script>
     // Menu Data
