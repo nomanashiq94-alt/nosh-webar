@@ -24,11 +24,12 @@ async function refreshBillingOverview(restaurants) {
   }
   const subs = data || [];
   const byId = new Map(subs.map(s => [s.restaurant_id, s]));
-  const today = new Date().toLocaleDateString('en-CA', {timeZone:'Asia/Karachi'});
+  const today = pakistanToday();
   const paid = subs.filter(s => s.payment_status === 'paid').length;
   const unpaid = subs.filter(s => s.payment_status === 'unpaid').length;
   const overdue = subs.filter(s => s.payment_status === 'overdue').length;
   const expired = subs.filter(s => s.expires_on && s.expires_on < today).length;
+  const soon = subs.filter(s => s.expires_on && s.expires_on >= today && daysBetween(today, s.expires_on) <= 7).length;
   const totals = {};
   for (const s of subs) {
     const currency = s.currency || 'PKR';
@@ -41,6 +42,7 @@ async function refreshBillingOverview(restaurants) {
     ['Subscriptions recorded', subs.length],
     ['Paid / Unpaid / Overdue', `${paid} / ${unpaid} / ${overdue}`],
     ['Expired dates', expired],
+    ['Expiring in 7 days', soon],
     ['Expected monthly fees', expected]
   ];
   summary.replaceChildren();
@@ -49,6 +51,23 @@ async function refreshBillingOverview(restaurants) {
     const name = document.createElement('small'); name.textContent = label;
     const val = document.createElement('strong'); val.textContent = String(value);
     card.append(name, val); summary.append(card);
+  }
+  const alerts = $('billing-alerts');
+  alerts.replaceChildren();
+  const alertsData = restaurants.map(r => ({r, s:byId.get(r.id)}))
+    .filter(({s}) => s?.expires_on && daysBetween(today,s.expires_on) <= 7)
+    .sort((a,b) => a.s.expires_on.localeCompare(b.s.expires_on));
+  if (!alertsData.length) alerts.textContent = 'No subscriptions expiring within 7 days or already expired.';
+  for (const {r,s} of alertsData) {
+    const days = daysBetween(today,s.expires_on);
+    const alert = document.createElement('div'); alert.className = 'billing-alert';
+    const title = document.createElement('strong'); title.textContent = r.name;
+    const desc = document.createElement('span');
+    desc.className = days < 0 ? 'billing-warning' : '';
+    desc.textContent = (days < 0 ? 'Expired '+(-days)+' day(s) ago' : days === 0 ? 'Expires today' : 'Expires in '+days+' day(s)') + ' · '+s.expires_on+' · payment: '+s.payment_status;
+    const button = document.createElement('button'); button.type = 'button'; button.textContent = 'Renew';
+    button.addEventListener('click', () => openSubscription(r, true));
+    alert.append(title,desc,document.createElement('div'),button); alerts.append(alert);
   }
   rows.replaceChildren();
   for (const restaurant of restaurants) {
@@ -68,7 +87,13 @@ async function refreshBillingOverview(restaurants) {
     const button = document.createElement('button'); button.type = 'button';
     button.textContent = sub ? 'Edit' : 'Set up';
     button.addEventListener('click', () => openSubscription(restaurant));
-    action.append(button); tr.append(action); rows.append(tr);
+    action.append(button);
+    if (sub) {
+      const renew = document.createElement('button'); renew.type = 'button';
+      renew.textContent = 'Renew'; renew.addEventListener('click', () => openSubscription(restaurant,true));
+      action.append(renew);
+    }
+    tr.append(action); rows.append(tr);
   }
   if (!restaurants.length) {
     const tr = document.createElement('tr'); const td = document.createElement('td');
@@ -208,12 +233,32 @@ $('branding-form').addEventListener('submit', async e => {
   finally { btn.disabled = false; }
 });
 
+// Date-only arithmetic avoids daylight-saving and locale formatting issues.
+function pakistanToday() {
+  const parts = new Intl.DateTimeFormat('en-US', {timeZone:'Asia/Karachi',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
+  const v = Object.fromEntries(parts.map(p => [p.type,p.value]));
+  return `${v.year}-${v.month}-${v.day}`;
+}
+function daysBetween(from, to) {
+  const asUTC = d => Date.UTC(...d.split('-').map((n,i) => i===1 ? Number(n)-1 : Number(n)));
+  return Math.round((asUTC(to)-asUTC(from))/86400000);
+}
+function addOneMonth(dateStr) {
+  const [y,m,d] = dateStr.split('-').map(Number);
+  const month = m === 12 ? 1 : m+1;
+  const year = m === 12 ? y+1 : y;
+  const lastDay = new Date(Date.UTC(year,month,0)).getUTCDate();
+  return `${year}-${String(month).padStart(2,'0')}-${String(Math.min(d,lastDay)).padStart(2,'0')}`;
+}
+let loadedSubscription = null;
 let selectedSubscriptionRestaurant = null;
 let subscriptionRequest = 0;
 
-async function openSubscription(restaurant) {
+async function openSubscription(restaurant, showRenew = false) {
   const request = ++subscriptionRequest;
   selectedSubscriptionRestaurant = null;
+  loadedSubscription = null;
+  $('renew-panel').hidden = true;
   $('subscription-section').hidden = true;
   $('subscription-status').textContent = '';
   message('Loading subscription…');
@@ -224,6 +269,7 @@ async function openSubscription(restaurant) {
     if (error) throw error;
     if (request !== subscriptionRequest) return;
     selectedSubscriptionRestaurant = restaurant;
+    loadedSubscription = data || null;
     $('subscription-restaurant').textContent = 'Restaurant: ' + restaurant.name + ' (' + restaurant.slug + ')';
     $('sub-plan').value = data?.plan_name || 'Standard';
     $('sub-fee').value = data?.monthly_fee ?? 0;
@@ -233,6 +279,7 @@ async function openSubscription(restaurant) {
     $('sub-payment').value = ['paid','unpaid','overdue'].includes(data?.payment_status) ? data.payment_status : 'unpaid';
     $('sub-notes').value = data?.notes || '';
     $('subscription-section').hidden = false;
+    if (showRenew) prepareRenewal();
     $('subscription-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
     message('Subscription settings loaded.');
   } catch (err) {
@@ -243,7 +290,60 @@ async function openSubscription(restaurant) {
 $('close-subscription').addEventListener('click', () => {
   ++subscriptionRequest;
   selectedSubscriptionRestaurant = null;
+  loadedSubscription = null;
+  $('renew-panel').hidden = true;
   $('subscription-section').hidden = true;
+});
+
+function prepareRenewal() {
+  if (!selectedSubscriptionRestaurant || !loadedSubscription) {
+    $('subscription-status').textContent = 'Save the subscription first, then renew it.';
+    return;
+  }
+  const today = pakistanToday();
+  const base = loadedSubscription.expires_on && loadedSubscription.expires_on > today
+    ? loadedSubscription.expires_on : today;
+  $('renew-paid-on').value = today;
+  $('renew-expiry').value = addOneMonth(base);
+  $('renew-expiry').min = today;
+  $('renew-confirm').value = '';
+  $('renew-status').textContent = '';
+  $('renew-panel').hidden = false;
+  $('renew-panel').scrollIntoView({behavior:'smooth',block:'start'});
+}
+$('start-renew').addEventListener('click', prepareRenewal);
+$('renew-cancel').addEventListener('click', () => { $('renew-panel').hidden = true; });
+$('renew-form').addEventListener('submit', async event => {
+  event.preventDefault();
+  const restaurant = selectedSubscriptionRestaurant;
+  if (!restaurant || !loadedSubscription) return;
+  const today = pakistanToday();
+  const paidOn = $('renew-paid-on').value;
+  const expiry = $('renew-expiry').value;
+  const previous = loadedSubscription.expires_on;
+  const status = $('renew-status');
+  if ($('renew-confirm').value !== 'received') return status.textContent = 'Confirm payment received first.';
+  if (!paidOn || paidOn > today) return status.textContent = 'Payment date cannot be in the future.';
+  if (!expiry || expiry <= today || (previous && expiry <= previous)) return status.textContent = 'New expiry must be later than today and the previous expiry.';
+  if (!confirm('Confirm payment received and renew '+restaurant.name+' until '+expiry+'?')) return;
+  const btn = $('renew-submit'); btn.disabled = true;
+  status.textContent = 'Renewing…';
+  try {
+    const {data,error} = await db.from('restaurant_subscriptions')
+      .update({starts_on: paidOn, expires_on:expiry, payment_status:'paid', updated_at:new Date().toISOString()})
+      .eq('restaurant_id',restaurant.id)
+      .select('restaurant_id,plan_name,monthly_fee,currency,starts_on,expires_on,payment_status,notes').single();
+    if (error) throw error;
+    if (selectedSubscriptionRestaurant?.id !== restaurant.id) return;
+    loadedSubscription = data;
+    $('sub-start').value = data.starts_on || '';
+    $('sub-expiry').value = data.expires_on || '';
+    $('sub-payment').value = 'paid';
+    $('renew-panel').hidden = true;
+    $('subscription-status').textContent = 'Subscription renewed successfully! Payment history is not recorded yet.';
+    await refreshRestaurants();
+  } catch(e) { status.textContent = 'Renewal failed: '+e.message; }
+  finally { btn.disabled = false; }
 });
 
 $('subscription-form').addEventListener('submit', async event => {
@@ -276,6 +376,8 @@ $('subscription-form').addEventListener('submit', async event => {
     const { error } = await db.from('restaurant_subscriptions')
       .upsert(payload, { onConflict: 'restaurant_id' });
     if (error) throw error;
+    loadedSubscription = {...payload};
+    $('renew-panel').hidden = true;
     status.textContent = 'Subscription saved successfully!';
     await refreshRestaurants();
     message('Subscription updated for ' + restaurant.name + '.');
