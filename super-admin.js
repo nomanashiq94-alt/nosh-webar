@@ -8,6 +8,74 @@ const fallbackPrimary = '#f59e0b';
 const fallbackSecondary = '#fbbf24';
 const validColor = (v, fallback) => /^#[0-9a-f]{6}$/i.test(v || '') ? v : fallback;
 
+// Billing overview: display only; no automatic subscription suspension.
+async function refreshBillingOverview(restaurants) {
+  const summary = $('billing-summary');
+  const rows = $('billing-rows');
+  const errorBox = $('billing-error');
+  errorBox.textContent = '';
+  const { data, error } = await db.from('restaurant_subscriptions')
+    .select('restaurant_id,plan_name,monthly_fee,currency,expires_on,payment_status');
+  if (error) {
+    summary.textContent = 'Billing records unavailable.';
+    rows.replaceChildren();
+    errorBox.textContent = 'Could not load billing: ' + error.message;
+    return;
+  }
+  const subs = data || [];
+  const byId = new Map(subs.map(s => [s.restaurant_id, s]));
+  const today = new Date().toLocaleDateString('en-CA', {timeZone:'Asia/Karachi'});
+  const paid = subs.filter(s => s.payment_status === 'paid').length;
+  const unpaid = subs.filter(s => s.payment_status === 'unpaid').length;
+  const overdue = subs.filter(s => s.payment_status === 'overdue').length;
+  const expired = subs.filter(s => s.expires_on && s.expires_on < today).length;
+  const totals = {};
+  for (const s of subs) {
+    const currency = s.currency || 'PKR';
+    totals[currency] = (totals[currency] || 0) + Number(s.monthly_fee || 0);
+  }
+  const expected = Object.entries(totals).map(([currency, amount]) =>
+    currency + ' ' + amount.toLocaleString('en-PK', {maximumFractionDigits:2})).join(' / ') || '—';
+  const stats = [
+    ['Total restaurants', restaurants.length],
+    ['Subscriptions recorded', subs.length],
+    ['Paid / Unpaid / Overdue', `${paid} / ${unpaid} / ${overdue}`],
+    ['Expired dates', expired],
+    ['Expected monthly fees', expected]
+  ];
+  summary.replaceChildren();
+  for (const [label, value] of stats) {
+    const card = document.createElement('div'); card.className = 'billing-stat';
+    const name = document.createElement('small'); name.textContent = label;
+    const val = document.createElement('strong'); val.textContent = String(value);
+    card.append(name, val); summary.append(card);
+  }
+  rows.replaceChildren();
+  for (const restaurant of restaurants) {
+    const sub = byId.get(restaurant.id);
+    const tr = document.createElement('tr');
+    const expiredDate = Boolean(sub?.expires_on && sub.expires_on < today);
+    const values = [restaurant.name, sub?.plan_name || 'Not set',
+      sub ? (sub.currency || 'PKR') + ' ' + Number(sub.monthly_fee).toLocaleString('en-PK') : '—',
+      sub ? sub.payment_status : 'Not set',
+      sub?.expires_on ? sub.expires_on + (expiredDate ? ' (Expired)' : '') : '—'];
+    for (const [index, value] of values.entries()) {
+      const td = document.createElement('td'); td.textContent = value;
+      if (index === 4 && expiredDate) td.className = 'billing-warning';
+      tr.append(td);
+    }
+    const action = document.createElement('td');
+    const button = document.createElement('button'); button.type = 'button';
+    button.textContent = sub ? 'Edit' : 'Set up';
+    button.addEventListener('click', () => openSubscription(restaurant));
+    action.append(button); tr.append(action); rows.append(tr);
+  }
+  if (!restaurants.length) {
+    const tr = document.createElement('tr'); const td = document.createElement('td');
+    td.colSpan = 6; td.textContent = 'No restaurants yet.'; tr.append(td); rows.append(tr);
+  }
+}
+
 async function refreshRestaurants() {
   const { data, error } = await db.from('restaurants')
     .select('id,name,slug,status,created_at,logo_url,primary_color,secondary_color')
@@ -33,6 +101,7 @@ async function refreshRestaurants() {
     subscription.addEventListener('click', () => openSubscription(r));
     li.append(strong, small, edit, manage, subscription); list.append(li);
   }
+  await refreshBillingOverview(data || []);
   if (!data.length) { const li = document.createElement('li'); li.textContent = 'No restaurants yet.'; list.append(li); }
 }
 
@@ -208,6 +277,7 @@ $('subscription-form').addEventListener('submit', async event => {
       .upsert(payload, { onConflict: 'restaurant_id' });
     if (error) throw error;
     status.textContent = 'Subscription saved successfully!';
+    await refreshRestaurants();
     message('Subscription updated for ' + restaurant.name + '.');
   } catch (err) {
     status.textContent = 'Could not save subscription: ' + err.message;
