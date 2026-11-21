@@ -73,6 +73,9 @@
         <button type="submit" class="bg-amber-500 text-black px-4 py-2 rounded-xl font-bold">Sign in</button>
       </form>
       <button id="admin-logout" onclick="signOutAdmin()" class="hidden text-xs underline">Sign out</button>
+      <label id="admin-restaurant-wrap" class="hidden block text-sm font-semibold">Select Restaurant
+        <select id="admin-restaurant" class="admin-input" onchange="chooseAdminRestaurant(this.value).catch(e=>adminMessage(e.message))"></select>
+      </label>
       <div id="admin-tools" class="hidden flex gap-2 flex-wrap"><button onclick="newItem()" class="bg-amber-500 text-slate-950 rounded-lg px-3 py-2 font-bold text-xs">+ New Dish</button><button onclick="exportMenu()" class="bg-slate-700 rounded-lg px-3 py-2 text-xs">Export JSON</button></div>
       <div id="admin-list" class="space-y-2"></div>
       <form id="admin-form" onsubmit="saveItem(event)" class="hidden space-y-3 border-t border-slate-700 pt-4">

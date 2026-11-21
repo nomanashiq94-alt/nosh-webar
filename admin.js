@@ -30,16 +30,32 @@ let adminEpoch = 0;
 let adminUserId = null;
 let adminCheckingAccess = false;
 let menuItems = [];
+let adminRestaurantId = null;
+let adminIsSuper = false;
+
+async function chooseAdminRestaurant(id) {
+  if (!adminAuthorized) return;
+  const select = document.getElementById('admin-restaurant');
+  if (!Array.from(select.options).some(option => option.value === id)) return;
+  adminRestaurantId = id;
+  document.getElementById('admin-form').classList.add('hidden');
+  menuItems = [];
+  renderAdminList();
+  await loadMenu();
+  adminMessage('Managing: ' + select.selectedOptions[0].textContent);
+}
+
 
 function adminMessage(text) {
   document.getElementById('admin-message').textContent = text;
 }
 
 async function loadMenu() {
-  if (!adminAuthorized) return;
+  if (!adminAuthorized || !adminRestaurantId) return;
   const epoch = adminEpoch;
-  const { data, error } = await adminDb.from('menu_items').select('*').order('sort_order').order('id');
-  if (epoch !== adminEpoch) return;
+  const restaurantId = adminRestaurantId;
+  const { data, error } = await adminDb.from('menu_items').select('*').eq('restaurant_id',restaurantId).order('sort_order').order('id');
+  if (epoch !== adminEpoch || restaurantId !== adminRestaurantId) return;
   if (error) throw error;
   menuItems = data.map(item => ({ ...item, price: Number(item.price) }));
   renderAdminList();
@@ -91,7 +107,7 @@ async function loadMenu() {
     function newItem() { fillEditor(null); }
     function editItem(id) { fillEditor(menuItems.find(i => i.id === id)); }
     function fillEditor(i) {
-      if(!adminAuthorized)return adminMessage('Admin login required.');
+      if(!adminAuthorized||!adminRestaurantId)return adminMessage('Select a restaurant first.');
       document.getElementById('admin-form').classList.remove('hidden');
       document.getElementById('editor-title').textContent = i ? 'Edit dish' : 'Add dish';
       for (const [field, val] of Object.entries({id:i?.id||'',title:i?.title||'',category:i?.category||'',price:i?.price??'',description:i?.description||'',image:i?.image||'',model:i?.modelUrl||'',usdz:i?.usdzUrl||'',width:i?.widthCm||''})) document.getElementById('edit-'+field).value=val;
@@ -118,6 +134,9 @@ async function adminSession(session){
   const epoch = ++adminEpoch;
   adminUserId = userId;
   adminAuthorized = false;
+  adminRestaurantId = null;
+  adminIsSuper = false;
+  document.getElementById('admin-restaurant-wrap').classList.add('hidden');
   adminCheckingAccess = !!userId;
   document.getElementById('admin-form').classList.add('hidden');
   document.getElementById('admin-login').classList.toggle('hidden',!!session);
@@ -125,12 +144,37 @@ async function adminSession(session){
   document.getElementById('admin-tools').classList.add('hidden');renderAdminList();
   if(!session){adminMessage('Sign in to edit the shared menu.');return;}
   try {
-    const {data,error}=await adminDb.from('menu_admins').select('user_id').eq('user_id',userId).maybeSingle();
+    const {data:superAdmin,error:superError}=await adminDb.from('super_admins').select('user_id').eq('user_id',userId).maybeSingle();
+    if(superError)throw superError;
+    adminIsSuper=!!superAdmin;
+    let restaurants=[];
+    if(adminIsSuper){
+      const {data,error}=await adminDb.from('restaurants').select('id,name,slug').order('name');
+      if(error)throw error;
+      restaurants=data||[];
+    }else{
+      const {data:membership,error}=await adminDb.from('menu_admins').select('restaurant_id').eq('user_id',userId).maybeSingle();
+      if(error)throw error;
+      if(membership?.restaurant_id){
+        const {data,error:restaurantError}=await adminDb.from('restaurants').select('id,name,slug').eq('id',membership.restaurant_id).maybeSingle();
+        if(restaurantError)throw restaurantError;
+        if(data)restaurants=[data];
+      }
+    }
     if(epoch!==adminEpoch)return;
-    if(error||!data){adminMessage('This account has no menu admin access. Add its UID to menu_admins.');return;}
-    adminAuthorized=true;document.getElementById('admin-tools').classList.remove('hidden');
-    adminMessage('Admin connected · Save publishes changes to all customers.');
-    await loadMenu();
+    if(!restaurants.length){adminMessage('No restaurant assigned or available.');return;}
+    const select=document.getElementById('admin-restaurant');
+    select.replaceChildren();
+    for(const restaurant of restaurants){
+      const option=document.createElement('option');
+      option.value=restaurant.id;
+      option.textContent=restaurant.name+' ('+restaurant.slug+')';
+      select.append(option);
+    }
+    adminAuthorized=true;
+    document.getElementById('admin-restaurant-wrap').classList.remove('hidden');
+    document.getElementById('admin-tools').classList.remove('hidden');
+    await chooseAdminRestaurant(restaurants[0].id);
   } catch (error) {
     if (epoch === adminEpoch) adminMessage(error.message);
   } finally {
@@ -166,7 +210,7 @@ function renderAdminList(){
   });
 }
 async function saveItem(e){
-  e.preventDefault();if(!adminAuthorized)return adminMessage('Admin login required.');
+  e.preventDefault();if(!adminAuthorized||!adminRestaurantId)return adminMessage('Select a restaurant first.');
   const get=k=>document.getElementById('edit-'+k).value.trim();
   let sizes;
   try { sizes = readSizeOptions(); }
@@ -176,7 +220,8 @@ async function saveItem(e){
   const id=get('id')||'dish-'+crypto.randomUUID(),price=firstSize?.price ?? Number(get('price')),width=Number(get('width'))||null;
   if(!get('title')||!get('category')||!Number.isFinite(price)||price<0||price>999999)
     return alert('Enter a dish name, category and valid price (0–999999).');
-  const item={id,title:get('title'),category:get('category'),price,sizes,description:get('description'),
+  const restaurantId=adminRestaurantId;
+  const item={id,restaurant_id:restaurantId,title:get('title'),category:get('category'),price,sizes,description:get('description'),
     image:safeUrl(get('image')),modelUrl:safeUrl(get('model')),usdzUrl:safeUrl(get('usdz')),
     widthCm:width,widthAxis:document.getElementById('edit-axis').value,
     available:document.getElementById('edit-available').checked,
@@ -188,7 +233,7 @@ async function saveItem(e){
       const valid=type==='image'?['image/jpeg','image/png','image/webp'].includes(file.type):file.name.toLowerCase().endsWith('.'+(type==='model'?'glb':'usdz'));
       if(!valid||file.size>(type==='image'?15:50)*1024*1024)throw Error('Invalid or oversized '+type+' file.');
       const ext=type==='image'?({'image/jpeg':'jpg','image/png':'png','image/webp':'webp'}[file.type]):type==='model'?'glb':'usdz';
-      const path=id+'/'+crypto.randomUUID()+'.'+ext;
+      const path=restaurantId+'/'+id+'/'+crypto.randomUUID()+'.'+ext;
       document.getElementById('upload-status').textContent='Uploading '+type+'…';
       const {error}=await adminDb.storage.from('menu-media').upload(path,file,{
         cacheControl:'31536000',upsert:false,contentType:type==='model'?'model/gltf-binary':type==='usdz'?'model/vnd.usdz+zip':file.type
@@ -197,6 +242,7 @@ async function saveItem(e){
       const {data}=adminDb.storage.from('menu-media').getPublicUrl(path);
       item[type==='image'?'image':type==='model'?'modelUrl':'usdzUrl']=data.publicUrl;
     }
+    if(restaurantId!==adminRestaurantId)throw Error('Restaurant changed; please save again.');
     const {error}=await adminDb.from('menu_items').upsert(item,{onConflict:'id'});if(error)throw error;
     document.getElementById('admin-form').classList.add('hidden');
     document.getElementById('upload-status').textContent='Saved to cloud storage.';
@@ -205,10 +251,10 @@ async function saveItem(e){
   finally{button.disabled=false;button.textContent='Save dish';}
 }
 async function deleteItem(id){
-  if(!adminAuthorized)return adminMessage('Admin login required.');
+  if(!adminAuthorized||!adminRestaurantId)return adminMessage('Select a restaurant first.');
   if(!confirm('Delete this dish from the shared menu on ALL devices? Existing orders are kept.'))return;
   try{
-    const {error}=await adminDb.from('menu_items').delete().eq('id',id);if(error)throw error;
+    const {error}=await adminDb.from('menu_items').delete().eq('id',id).eq('restaurant_id',adminRestaurantId);if(error)throw error;
     await loadMenu();showToast('Dish deleted from shared menu');
   }catch(error){alert('Delete failed: '+error.message);}
 }
