@@ -39,6 +39,8 @@ async function openBranding(id) {
   $('brand-secondary').value = validColor(r.secondary_color, fallbackSecondary);
   $('brand-logo').value = r.logo_url || '';
   $('branding-status').textContent = '';
+  $('logo-upload-status').textContent = '';
+  $('brand-logo-file').value = '';
   updateLogoPreview();
   $('branding-section').hidden = false;
   $('branding-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -54,6 +56,49 @@ function updateLogoPreview() {
   img.onerror = () => { img.hidden = true; };
 }
 $('brand-logo').addEventListener('change', updateLogoPreview);
+// Upload a unique file per restaurant; no storage overwrite/delete policy required.
+$('upload-logo').addEventListener('click', async () => {
+  const restaurant = selectedRestaurant;
+  if (!restaurant) return;
+  const file = $('brand-logo-file').files[0];
+  const status = $('logo-upload-status');
+  if (!file) { status.textContent = 'Choose a logo file first.'; return; }
+  const types = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
+  if (!types[file.type]) { status.textContent = 'Only JPG, PNG or WebP is allowed.'; return; }
+  if (file.size > 2 * 1024 * 1024 || file.size === 0) {
+    status.textContent = 'Choose a non-empty image smaller than 2 MB.'; return;
+  }
+  const button = $('upload-logo');
+  button.disabled = true;
+  $('save-branding').disabled = true;
+  status.textContent = 'Uploading logo…';
+  try {
+    const path = `${restaurant.id}/${crypto.randomUUID()}.${types[file.type]}`;
+    const { error: uploadError } = await db.storage.from('restaurant-logos')
+      .upload(path, file, { contentType: file.type, upsert: false, cacheControl: '3600' });
+    if (uploadError) throw uploadError;
+    const { data: publicData } = db.storage.from('restaurant-logos').getPublicUrl(path);
+    const url = publicData.publicUrl;
+    const { data, error: saveError } = await db.from('restaurants')
+      .update({ logo_url: url }).eq('id', restaurant.id)
+      .select('id,logo_url').single();
+    if (saveError) throw new Error('File uploaded, but database URL update failed: ' + saveError.message);
+    if (selectedRestaurant?.id === restaurant.id) {
+      selectedRestaurant = { ...selectedRestaurant, logo_url: data.logo_url };
+      $('brand-logo').value = data.logo_url;
+      $('brand-logo-file').value = '';
+      updateLogoPreview();
+    }
+    status.textContent = 'Logo uploaded and saved! Refresh the customer website.';
+    await refreshRestaurants();
+  } catch (error) {
+    status.textContent = 'Upload failed: ' + error.message;
+  } finally {
+    button.disabled = false;
+    $('save-branding').disabled = false;
+  }
+});
+
 $('cancel-branding').addEventListener('click', () => { $('branding-section').hidden = true; selectedRestaurant = null; });
 $('branding-form').addEventListener('submit', async e => {
   e.preventDefault();
