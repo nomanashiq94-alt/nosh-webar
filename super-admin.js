@@ -5,7 +5,7 @@ const message = s => { $('message').textContent = s; };
 let epoch = 0;
 let selectedRestaurant = null;
 const fallbackPrimary = '#f59e0b';
-const fallbackSecondary = '#fbbf24';
+const fallbackSecondary = '#fb923c';
 const validColor = (v, fallback) => /^#[0-9a-f]{6}$/i.test(v || '') ? v : fallback;
 
 // Step 51.7.2: status is calculated by the Supabase security-invoker view.
@@ -281,18 +281,46 @@ $('payment-form').addEventListener('submit', async event => {
   finally { paymentSaving = false; $('payment-save').disabled = false; }
 });
 
+const themeKeys = ['primary_color','secondary_color','background_color','card_color','text_color','price_color','button_text_color'];
+const themeIds = ['primary','secondary','background','card','text','price','button_text'];
+const themeLabels = ['Primary','Secondary','Background','Card','Text','Price','Button text'];
+const themePresets = {
+'Luxury Gold':['#d4af37','#8b6914','#101010','#202020','#ffffff','#eac75b','#101010'],
+'Classic Italian':['#b91c1c','#15803d','#fff7ed','#ffffff','#292524','#b91c1c','#ffffff'],
+'Ocean Blue':['#0284c7','#155e75','#eff6ff','#ffffff','#172554','#0369a1','#ffffff'],
+'Modern Dark':['#06b6d4','#2563eb','#0f172a','#1e293b','#f8fafc','#67e8f9','#111827'],
+'Minimal White':['#171717','#525252','#fafafa','#ffffff','#171717','#171717','#ffffff'],
+'Coffee House':['#78350f','#a16207','#f5e9d9','#fffaf3','#422006','#92400e','#ffffff'],
+'Fast Food':['#dc2626','#ea580c','#fff7ed','#ffffff','#292524','#dc2626','#ffffff'],
+'Emerald Green':['#047857','#059669','#ecfdf5','#ffffff','#064e3b','#047857','#ffffff']};
+let themeDraft = [], brandingRequest = 0, brandingBusy = false;
+function lum(c){const a=c.slice(1).match(/../g).map(x=>parseInt(x,16)/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4);return .2126*a[0]+.7152*a[1]+.0722*a[2];}
+function effectiveTheme(){const p=validColor(themeDraft[0],fallbackPrimary),s=validColor(themeDraft[1],'#fb923c');return [p,s,validColor(themeDraft[2],'#111827'),validColor(themeDraft[3],'#1f2937'),validColor(themeDraft[4],'#f3f4f6'),validColor(themeDraft[5],'#fbbf24'),validColor(themeDraft[6],lum(p)>.179?'#111827':'#ffffff')];}
+function previewTheme(){const [p,s,b,c,t,price,bt]=effectiveTheme();const preview=$('theme-preview');preview.style.background=b;preview.style.color=t;$('theme-header').style.background=`linear-gradient(120deg,${p},${s})`;$('theme-header').style.color=bt;$('theme-name').textContent=$('brand-name').value||'Restaurant';for(const el of preview.querySelectorAll('.theme-demo-card'))el.style.background=c;for(const el of preview.querySelectorAll('.theme-demo-price'))el.style.color=price;for(const el of preview.querySelectorAll('.theme-demo-action')){el.style.background=p;el.style.color=bt;}const warnings=[];for(const [a,z,label] of [[t,b,'Text / background'],[t,c,'Text / card'],[price,c,'Price / card'],[bt,p,'Button text / primary'],[bt,s,'Header text / secondary']]){const x=lum(a),y=lum(z);if((Math.max(x,y)+.05)/(Math.min(x,y)+.05)<4.5)warnings.push(label);} $('theme-warning').textContent=warnings.length?'Low contrast (below 4.5:1): '+warnings.join(', '):'Sample color pairs meet 4.5:1 contrast.';}
+function renderTheme(){const effective=effectiveTheme();themeIds.forEach((id,i)=>{$('brand-'+id).value=effective[i];$('hex-'+id).value=themeDraft[i]||'';$('hex-'+id).removeAttribute('aria-invalid');});previewTheme();}
+function loadTheme(r){themeDraft=themeKeys.map(k=>validColor(r[k],null));renderTheme();}
+function lockBranding(b){brandingBusy=b;for(const el of $('branding-form').querySelectorAll('input,button'))el.disabled=b;}
+for(const [name,colors] of Object.entries(themePresets)){const b=document.createElement('button');b.type='button';const sw=document.createElement('span');sw.className='theme-swatches';for(const c of colors){const x=document.createElement('span');x.style.background=c;sw.append(x);}b.append(sw,document.createTextNode(name));b.onclick=()=>{themeDraft=[...colors];renderTheme();};$('theme-presets').append(b);}
+themeIds.forEach((id,i)=>{const row=document.createElement('div');row.className='theme-control';const label=document.createElement('label');label.htmlFor='brand-'+id;label.textContent=themeLabels[i];const picker=document.createElement('input');picker.type='color';picker.id='brand-'+id;const hex=document.createElement('input');hex.type='text';hex.id='hex-'+id;hex.placeholder='Default';hex.maxLength=7;hex.setAttribute('aria-label',themeLabels[i]+' HEX');const reset=document.createElement('button');reset.type='button';reset.textContent='Default';picker.oninput=()=>{themeDraft[i]=picker.value;hex.value=picker.value;hex.removeAttribute('aria-invalid');previewTheme();};hex.oninput=()=>{const v=hex.value.trim();if(v&&!validColor(v,null)){hex.setAttribute('aria-invalid','true');return;}hex.removeAttribute('aria-invalid');themeDraft[i]=v||null;picker.value=effectiveTheme()[i];previewTheme();};reset.onclick=()=>{themeDraft[i]=null;renderTheme();};row.append(label,picker,hex,reset);$('theme-controls').append(row);});
+$('theme-reset').onclick=()=>{if(selectedRestaurant)loadTheme(selectedRestaurant);};
+$('theme-default').onclick=()=>{themeDraft=[themeDraft[0],themeDraft[1],null,null,null,null,null];renderTheme();};
+$('brand-name').addEventListener('input',previewTheme);
+
 async function openBranding(id) {
+  if(brandingBusy)return;
+  const ticket=++brandingRequest, sessionEpoch=epoch;
+  selectedRestaurant=null;
   showView('branding');
   $('branding-section').hidden = true;
   message('Loading branding settings…');
   const { data: r, error } = await db.from('restaurants')
-    .select('id,name,slug,logo_url,primary_color,secondary_color').eq('id', id).single();
+    .select('id,name,slug,logo_url,'+themeKeys.join(',')).eq('id', id).single();
+  if(ticket!==brandingRequest||sessionEpoch!==epoch)return;
   if (error || !r) { message('Cannot load restaurant: ' + (error?.message || 'Not found')); return; }
   selectedRestaurant = r;
   $('selected-restaurant').textContent = 'Editing: ' + r.name + ' (' + r.slug + ')';
   $('brand-name').value = r.name;
-  $('brand-primary').value = validColor(r.primary_color, fallbackPrimary);
-  $('brand-secondary').value = validColor(r.secondary_color, fallbackSecondary);
+  loadTheme(r);
   $('brand-logo').value = r.logo_url || '';
   $('branding-status').textContent = '';
   $('logo-upload-status').textContent = '';
@@ -306,16 +334,17 @@ async function openBranding(id) {
 function updateLogoPreview() {
   const value = $('brand-logo').value.trim();
   const img = $('logo-preview');
+  const demo=$('theme-logo');demo.hidden=true;demo.removeAttribute('src');if(/^https:\/\//i.test(value)){demo.src=value;demo.hidden=false;demo.onerror=()=>{demo.hidden=true;};}
   if (!value || !/^https:\/\//i.test(value)) { img.hidden = true; img.removeAttribute('src'); return; }
   img.hidden = false;
   img.src = value;
   img.onerror = () => { img.hidden = true; };
 }
-$('brand-logo').addEventListener('change', updateLogoPreview);
+$('brand-logo').addEventListener('input', updateLogoPreview);
 // Upload a unique file per restaurant; no storage overwrite/delete policy required.
 $('upload-logo').addEventListener('click', async () => {
   const restaurant = selectedRestaurant;
-  if (!restaurant) return;
+  if (!restaurant || brandingBusy) return;
   const file = $('brand-logo-file').files[0];
   const status = $('logo-upload-status');
   if (!file) { status.textContent = 'Choose a logo file first.'; return; }
@@ -325,8 +354,7 @@ $('upload-logo').addEventListener('click', async () => {
     status.textContent = 'Choose a non-empty image smaller than 2 MB.'; return;
   }
   const button = $('upload-logo');
-  button.disabled = true;
-  $('save-branding').disabled = true;
+  lockBranding(true);
   status.textContent = 'Uploading logo…';
   try {
     const path = `${restaurant.id}/${crypto.randomUUID()}.${types[file.type]}`;
@@ -350,39 +378,37 @@ $('upload-logo').addEventListener('click', async () => {
   } catch (error) {
     status.textContent = 'Upload failed: ' + error.message;
   } finally {
-    button.disabled = false;
-    $('save-branding').disabled = false;
+    lockBranding(false);
   }
 });
 
-$('cancel-branding').addEventListener('click', () => { $('branding-section').hidden = true; selectedRestaurant = null; });
+$('cancel-branding').addEventListener('click', () => { if(brandingBusy)return; ++brandingRequest; $('branding-section').hidden = true; selectedRestaurant = null; });
 $('branding-form').addEventListener('submit', async e => {
   e.preventDefault();
-  if (!selectedRestaurant) return;
+  if (!selectedRestaurant || brandingBusy) return;
+  const target=selectedRestaurant; const sessionEpoch=epoch;
   const name = $('brand-name').value.trim();
-  const primary_color = $('brand-primary').value;
-  const secondary_color = $('brand-secondary').value;
   const logo_url = $('brand-logo').value.trim() || null;
-  if (!name || !/^#[0-9a-f]{6}$/i.test(primary_color) || !/^#[0-9a-f]{6}$/i.test(secondary_color)) {
-    $('branding-status').textContent = 'Please enter a valid name and colors.'; return;
-  }
+  if (!name || themeIds.some(id=>$('hex-'+id).getAttribute('aria-invalid')==='true')) { $('branding-status').textContent='Enter valid name and HEX colors.';return; }
+  const payload=Object.fromEntries(themeKeys.map((k,i)=>[k,themeDraft[i]||null]));
   if (logo_url && !/^https:\/\//i.test(logo_url)) {
     $('branding-status').textContent = 'Logo URL must start with https://'; return;
   }
-  const btn = $('save-branding'); btn.disabled = true;
+  lockBranding(true);
   $('branding-status').textContent = 'Saving…';
   try {
     const { data, error } = await db.from('restaurants')
-      .update({ name, primary_color, secondary_color, logo_url })
-      .eq('id', selectedRestaurant.id)
-      .select('id,name,primary_color,secondary_color,logo_url').single();
+      .update({ name, ...payload, logo_url })
+      .eq('id', target.id)
+      .select('id,name,logo_url,'+themeKeys.join(',')).single();
+    if(sessionEpoch!==epoch)return;
     if (error) throw error;
     selectedRestaurant = { ...selectedRestaurant, ...data };
     $('branding-status').textContent = 'Saved! Refresh the customer menu to see the new branding.';
     await refreshRestaurants();
     message('Branding saved for ' + data.name + '.');
   } catch (err) { $('branding-status').textContent = 'Could not save: ' + err.message; }
-  finally { btn.disabled = false; }
+  finally { lockBranding(false); }
 });
 
 // Date-only arithmetic avoids daylight-saving and locale formatting issues.
@@ -699,6 +725,7 @@ $('settings-form').addEventListener('submit',async e=>{
 
 async function checkSession() {
   resetSettings();
+  ++brandingRequest;
   const seq = ++epoch;
   $('dashboard').hidden = true; $('login').hidden = false;
   $('branding-section').hidden = true; selectedRestaurant = null;
