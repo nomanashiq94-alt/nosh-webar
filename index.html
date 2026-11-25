@@ -103,6 +103,13 @@
   </header>
 
   <p id="menu-connection" role="status" class="max-w-md mx-auto px-4 pt-3 text-xs text-slate-400 w-full">Connecting menu…</p>
+  <section id="ordering-notice" role="status" aria-live="polite" class="max-w-md mx-auto px-4 pt-3 w-full">
+    <div class="rounded-2xl border border-slate-700 bg-slate-900 p-4">
+      <h2 id="ordering-title" class="font-bold text-sm text-white">Checking online ordering…</h2>
+      <p id="ordering-detail" class="text-xs text-slate-300 mt-2">You can explore the menu while we connect.</p>
+    </div>
+  </section>
+  <style>#ordering-notice[hidden]{display:none!important} button:disabled{opacity:.5;cursor:not-allowed}</style>
   <!-- Banner / AR Helper Info -->
   <div class="max-w-md mx-auto px-4 pt-4 w-full">
     <div class="p-3.5 rounded-2xl bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-amber-500/5 border border-amber-500/20 flex items-start gap-3">
@@ -471,6 +478,24 @@
     const categories = () => ['All Items', ...new Set(menuItems.filter(i=>i.available).map(i => i.category))];
     let currentCategory = "All Items";
     let cart = [];
+    let orderingState = 'checking';
+    function orderingAllowed() { return orderingState === 'allowed'; }
+    function syncOrderingControls() {
+      const allowed = orderingAllowed();
+      document.getElementById('ordering-notice').hidden = allowed;
+      document.getElementById('ordering-title').textContent = orderingState === 'blocked' ? 'Online ordering temporarily unavailable' : 'Checking online ordering…';
+      document.getElementById('ordering-detail').textContent = orderingState === 'blocked' ? 'You can still explore our menu. Please contact our restaurant staff to place your order.' : 'You can browse the menu. Ordering will be available once the connection is verified.';
+      document.querySelectorAll('[data-order-add]').forEach(b => { b.disabled = !allowed; b.querySelector('span').textContent = allowed ? 'Add' : 'Unavailable'; });
+      document.querySelectorAll('[data-order-increase]').forEach(b => b.disabled = !allowed);
+      const ar = document.getElementById('modal-add-cart-btn');
+      ar.disabled = !allowed; ar.textContent = allowed ? 'Add to Order' : 'Unavailable';
+      const checkout = document.getElementById('checkout-btn');
+      checkout.disabled = !allowed || !cart.length;
+      checkout.textContent = allowed ? 'Proceed to Checkout' : 'Ordering unavailable';
+      document.querySelector('#order-form button[type="submit"]').disabled = !allowed || placingOrder;
+    }
+    function setOrderingState(state) { orderingState = state; syncOrderingControls(); }
+
 
     // Filter Categories Render
     function renderCategories() {
@@ -544,9 +569,9 @@
                 <i class="fa-solid fa-cube text-amber-400"></i>
                 <span>3D / AR</span>
               </button>
-              <button onclick="addToCart('${item.id}')" class="flex-1 py-2.5 px-3 rounded-xl bg-amber-500 text-slate-950 hover:bg-amber-400 transition text-xs font-bold flex items-center justify-center gap-2 shadow-md shadow-amber-500/10">
+              <button data-order-add ${orderingAllowed() ? '' : 'disabled'} onclick="addToCart('${item.id}')" class="flex-1 py-2.5 px-3 rounded-xl bg-amber-500 text-slate-950 hover:bg-amber-400 transition text-xs font-bold flex items-center justify-center gap-2 shadow-md shadow-amber-500/10">
                 <i class="fa-solid fa-plus"></i>
-                <span>Add</span>
+                <span>${orderingAllowed() ? 'Add' : 'Unavailable'}</span>
               </button>
             </div>
           </div>
@@ -557,7 +582,7 @@
     // Cart Management Logic
     function addToCart(itemId, size = selectedSizes.get(itemId)) {
       const item = resolveSize(menuItems.find(i => i.id === itemId), size);
-      if (!item || !menuReady) return;
+      if (!orderingAllowed() || !item || !menuReady) return;
       const existing = cart.find(c => c.id === itemId && c.size === item.size);
 
       if (existing) {
@@ -571,6 +596,7 @@
     }
 
     function updateQuantity(index, delta) {
+      if (delta > 0 && !orderingAllowed()) return;
       if (cart[index]) {
         cart[index].quantity += delta;
         if (cart[index].quantity <= 0) {
@@ -599,7 +625,7 @@
       document.getElementById('checkout-total-val').textContent = money(total);
 
       // Disable Checkout if empty
-      document.getElementById('checkout-btn').disabled = cart.length === 0;
+      syncOrderingControls();
 
       // Drawer Item List
       const cartContainer = document.getElementById('cart-items-list');
@@ -621,7 +647,7 @@
             <div class="flex items-center gap-2 bg-slate-900 border border-slate-700 rounded-lg p-1">
               <button onclick="updateQuantity(${index}, -1)" class="w-6 h-6 rounded bg-slate-800 text-slate-300 hover:text-white font-bold flex items-center justify-center text-xs">-</button>
               <span class="text-xs font-bold text-white px-1">${item.quantity}</span>
-              <button onclick="updateQuantity(${index}, 1)" class="w-6 h-6 rounded bg-slate-800 text-slate-300 hover:text-white font-bold flex items-center justify-center text-xs">+</button>
+              <button data-order-increase ${orderingAllowed() ? '' : 'disabled'} onclick="updateQuantity(${index}, 1)" class="w-6 h-6 rounded bg-slate-800 text-slate-300 hover:text-white font-bold flex items-center justify-center text-xs">+</button>
             </div>
           </div>
         `).join('');
@@ -743,7 +769,7 @@
     }
 
     function openCheckoutModal() {
-      if (cart.length === 0) return;
+      if (!orderingAllowed() || cart.length === 0) return;
       toggleCartDrawer();
       document.getElementById('checkout-modal').classList.remove('hidden');
     }
@@ -755,7 +781,7 @@
     let placingOrder=false, pendingOrder=null, pendingSignature='';
     async function handlePlaceOrder(e) {
       e.preventDefault();
-      if(placingOrder || !cart.length || !menuReady) return;
+      if(placingOrder || !cart.length || !menuReady || !orderingAllowed()) return;
       const name=document.getElementById('cust-name').value.trim();
       const table=Number(document.getElementById('cust-table').value);
       const payment=document.getElementById('cust-payment').value;
@@ -800,10 +826,12 @@ const {data:receipt,error}=await menuDb.rpc('place_restaurant_order',{
         document.getElementById('order-form').reset();initializeTables();
         pendingOrder=null;pendingSignature='';
       } catch(error) {
-        alert('Order confirmation failed. '+error.message+' Your cart is kept; retry from this page to confirm.');
+        if (String(error.message).includes('Restaurant ordering is temporarily unavailable')) {
+          ++statusRequest; setOrderingState('blocked'); closeCheckoutModal();
+        } else { alert('Order confirmation failed. '+error.message+' Your cart is kept; retry from this page to confirm.'); }
         await loadMenu();
       } finally {
-        placingOrder=false;button.disabled=false;button.textContent=label;
+        placingOrder=false;button.textContent=label;syncOrderingControls();
       }
     }
     function initializeTables(){const el=document.getElementById('cust-table');el.innerHTML='<option value="">Select table</option>'+Array.from({length:10},(_,i)=>`<option value="${i+1}">Table ${String(i+1).padStart(2,'0')}</option>`).join('');const t=Number(new URLSearchParams(location.search).get('table'));if(Number.isInteger(t)&&t>=1&&t<=10){el.value=String(t);el.disabled=true;}else el.disabled=false;}
