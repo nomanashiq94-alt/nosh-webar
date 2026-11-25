@@ -124,6 +124,7 @@ async function refreshRestaurants() {
     .order('created_at', { ascending: false });
   if (error) throw error;
   const list = $('restaurants'); list.replaceChildren();
+  renderPickers(data || []);
   for (const r of data) {
     const li = document.createElement('li');
     const strong = document.createElement('strong'); strong.textContent = r.name;
@@ -147,8 +148,10 @@ async function refreshRestaurants() {
     payments.addEventListener('click', () => openPayments(r));
     const settings = document.createElement('button'); settings.type = 'button'; settings.className = 'restaurant-edit'; settings.textContent = 'Manage Settings';
     settings.addEventListener('click', () => openSettings(r));
-    li.append(strong, small, edit, manage, subscription, payments, settings); list.append(li);
+    const copy = document.createElement('button'); copy.type='button'; copy.textContent='Copy menu link'; copy.onclick=async()=>{const url=new URL('./',location.href);url.searchParams.set('restaurant',r.slug);try{await navigator.clipboard.writeText(url.href);message('Menu link copied.');}catch{message(url.href);}};
+    li.append(strong, small, edit, manage, subscription, payments, settings, copy); list.append(li);
   }
+  filterRestaurants();
   await refreshBillingOverview(data || []);
   if (!data.length) { const li = document.createElement('li'); li.textContent = 'No restaurants yet.'; list.append(li); }
 }
@@ -167,6 +170,7 @@ function formatMoney(amount, currency) {
   });
 }
 async function openPayments(restaurant) {
+  showView('payments');
   const request = ++paymentRequest;
   selectedPaymentRestaurant = null;
   $('payment-section').hidden = true;
@@ -278,6 +282,7 @@ $('payment-form').addEventListener('submit', async event => {
 });
 
 async function openBranding(id) {
+  showView('branding');
   $('branding-section').hidden = true;
   message('Loading branding settings…');
   const { data: r, error } = await db.from('restaurants')
@@ -418,6 +423,7 @@ function renewalPayload(restaurant, requestId) {
 }
 
 async function openSubscription(restaurant, showRenew = false) {
+  showView('subscriptions');
   if (renewalSaving) { message("Wait for the renewal request to finish."); return; }
   resetRenewalAttempt();
   const request = ++subscriptionRequest;
@@ -658,6 +664,7 @@ function previewSettings(){
   $('settings-preview').textContent = valid ? `Tax: ${formatMoney(10*tax,'PKR')} · Service: ${formatMoney(10*service,'PKR')} · Total: ${formatMoney(1000+10*tax+10*service,'PKR')}` : 'Enter valid percentages.';
 }
 async function openSettings(r){
+  showView('settings');
   if(settingsSaving){message('Wait for settings save to finish.');return;}
   resetSettings(); const ticket=settingsRequest, sessionEpoch=epoch;
   message('Loading restaurant settings…');
@@ -705,7 +712,7 @@ async function checkSession() {
     .select('user_id').eq('user_id', user.id).maybeSingle();
   if (seq !== epoch) return;
   if (accessError || !admin) { message('This account is not a super admin.'); return; }
-  $('login').hidden = true; $('dashboard').hidden = false;
+  $('login').hidden = true; $('dashboard').hidden = false; showView('dashboard');
   try { await refreshRestaurants(); message('Super admin connected.'); }
   catch (e) { message(e.message); }
 }
@@ -730,4 +737,28 @@ $('create-form').addEventListener('submit', async e => {
   } catch (err) { message('Could not create restaurant: ' + err.message); }
   finally { button.disabled = false; }
 });
+
+const viewTitles={dashboard:'Overview',restaurants:'Restaurants',settings:'Restaurant settings',branding:'Themes & branding',subscriptions:'Subscriptions',payments:'Payments',menu:'Menu management'};
+function showView(view){
+ if(!Object.hasOwn(viewTitles,view))view='dashboard';
+ document.querySelectorAll('[data-view]').forEach(n=>n.classList.toggle('view-hidden',n.dataset.view!==view));
+ document.querySelectorAll('[data-nav]').forEach(n=>{if(n.dataset.nav===view)n.setAttribute('aria-current','page');else n.removeAttribute('aria-current');});
+ $('view-title').textContent=viewTitles[view];
+}
+function renderPickers(restaurants){
+ document.querySelectorAll('[data-picker]').forEach(panel=>{
+ panel.replaceChildren();
+ for(const r of restaurants){const b=document.createElement('button');b.type='button';b.textContent=r.name;b.onclick=()=>{switch(panel.dataset.picker){case 'settings':openSettings(r);break;case 'branding':openBranding(r.id);break;case 'payments':openPayments(r);break;case 'subscriptions':openSubscription(r);break;case 'menu':location.href='admin.html?restaurant_id='+encodeURIComponent(r.id);break;}};panel.append(b);}
+ if(!restaurants.length)panel.textContent='No restaurants yet.';
+ });
+ filterRestaurants();
+}
+function filterRestaurants(){const q=$('restaurant-search').value.trim().toLowerCase();for(const li of $('restaurants').children)li.hidden=!li.textContent.toLowerCase().includes(q);}
+$('restaurant-search').addEventListener('input',filterRestaurants);
+document.querySelectorAll('[data-nav]').forEach(b=>b.onclick=()=>showView(b.dataset.nav));
+$('nav-toggle').onclick=()=>document.body.classList.toggle('sidebar-closed');
+try{document.body.classList.toggle('light',localStorage.getItem('nosh-admin-theme')==='light');}catch{}
+$('theme-toggle').onclick=()=>{document.body.classList.toggle('light');try{localStorage.setItem('nosh-admin-theme',document.body.classList.contains('light')?'light':'dark');}catch{}};
+showView('dashboard');
+
 checkSession();
