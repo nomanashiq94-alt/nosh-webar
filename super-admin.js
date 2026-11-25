@@ -28,14 +28,17 @@ async function refreshBillingOverview(restaurants) {
   const errorBox = $('billing-error');
   errorBox.textContent = '';
   const { data, error } = await db.from('restaurant_subscription_status')
-    .select('restaurant_id,restaurant_name,plan_name,monthly_fee,currency,payment_status,expires_on,grace_period_days,access_mode,subscription_status,days_until_expiry');
+    .select('restaurant_id,restaurant_name,plan_name,monthly_fee,currency,payment_status,expires_on,grace_period_days,subscription_status,days_until_expiry');
   if (error) {
     summary.textContent = 'Subscription status records unavailable.';
     rows.replaceChildren(); alerts.replaceChildren();
     errorBox.textContent = 'Could not load subscription status: ' + error.message;
     return;
   }
-  const subs = data || [];
+  const {data: modes, error: modeError} = await db.from('restaurant_subscriptions').select('restaurant_id,access_mode');
+  const modeMap = new Map((modes || []).map(s => [s.restaurant_id,s.access_mode]));
+  if (modeError) errorBox.textContent = 'Access modes unavailable: ' + modeError.message;
+  const subs = (data || []).map(s => ({...s,access_mode:modeMap.get(s.restaurant_id)}));
   const byId = new Map(subs.map(s => [s.restaurant_id, s]));
   const configured = subs.filter(s => s.subscription_status !== 'not_configured');
   const counts = Object.fromEntries(Object.keys(subscriptionStatusLabels).map(k => [k, 0]));
@@ -142,7 +145,9 @@ async function refreshRestaurants() {
     payments.type = 'button'; payments.className = 'restaurant-edit';
     payments.textContent = 'Payment History';
     payments.addEventListener('click', () => openPayments(r));
-    li.append(strong, small, edit, manage, subscription, payments); list.append(li);
+    const settings = document.createElement('button'); settings.type = 'button'; settings.className = 'restaurant-edit'; settings.textContent = 'Manage Settings';
+    settings.addEventListener('click', () => openSettings(r));
+    li.append(strong, small, edit, manage, subscription, payments, settings); list.append(li);
   }
   await refreshBillingOverview(data || []);
   if (!data.length) { const li = document.createElement('li'); li.textContent = 'No restaurants yet.'; list.append(li); }
@@ -640,7 +645,53 @@ $('subscription-form').addEventListener('submit', async event => {
   } finally { button.disabled = false; }
 });
 
+
+// Restaurant-specific settings. Database RLS remains the authorization boundary.
+const settingsFields = {table_count:'settings-tables',tax_percent:'settings-tax',service_charge_percent:'settings-service',cash_enabled:'settings-cash',card_enabled:'settings-card',customer_name_required:'settings-name',customer_phone_required:'settings-phone'};
+const settingsColumns = Object.keys(settingsFields).join(',');
+let settingsTarget = null, settingsRequest = 0, settingsSaving = false;
+function resetSettings(){ ++settingsRequest; settingsTarget = null; $('settings-section').hidden = true; }
+function lockSettings(lock){ for(const id of [...Object.values(settingsFields),'settings-save','settings-close']) $(id).disabled = lock; }
+function previewSettings(){
+  const tax = Number($('settings-tax').value), service = Number($('settings-service').value);
+  const valid = [tax,service].every(n=>Number.isFinite(n)&&n>=0&&n<=100);
+  $('settings-preview').textContent = valid ? `Tax: ${formatMoney(10*tax,'PKR')} · Service: ${formatMoney(10*service,'PKR')} · Total: ${formatMoney(1000+10*tax+10*service,'PKR')}` : 'Enter valid percentages.';
+}
+async function openSettings(r){
+  if(settingsSaving){message('Wait for settings save to finish.');return;}
+  resetSettings(); const ticket=settingsRequest, sessionEpoch=epoch;
+  message('Loading restaurant settings…');
+  try {
+    const {data,error}=await db.from('restaurants').select('id,name,slug,'+settingsColumns).eq('id',r.id).single();
+    if(ticket!==settingsRequest||sessionEpoch!==epoch)return;
+    if(error||!data)throw error||Error('Restaurant not found');
+    settingsTarget=data;
+    for(const [key,id] of Object.entries(settingsFields)){const field=$(id); if(field.type==='checkbox')field.checked=data[key]===true;else field.value=data[key];}
+    lockSettings(false); $('settings-restaurant').textContent=data.name+' ('+data.slug+')'; $('settings-status').textContent=''; previewSettings(); $('settings-section').hidden=false; $('settings-section').scrollIntoView({behavior:'smooth'}); message('Restaurant settings loaded.');
+  }catch(e){if(ticket===settingsRequest&&sessionEpoch===epoch)message('Settings unavailable: '+e.message);}
+}
+$('settings-form').addEventListener('input',previewSettings);
+$('settings-close').addEventListener('click',()=>{if(!settingsSaving)resetSettings();});
+$('settings-form').addEventListener('submit',async e=>{
+  e.preventDefault(); if(settingsSaving||!settingsTarget||$('dashboard').hidden)return;
+  const target=settingsTarget, ticket=settingsRequest, sessionEpoch=epoch, payload={};
+  for(const [key,id] of Object.entries(settingsFields)){const field=$(id); payload[key]=field.type==='checkbox'?field.checked:Number(field.value);}
+  const status=$('settings-status');
+  if(!e.target.checkValidity()||!Number.isInteger(payload.table_count)||payload.table_count<1||payload.table_count>500||![payload.tax_percent,payload.service_charge_percent].every(n=>Number.isFinite(n)&&n>=0&&n<=100)){status.textContent='Enter valid table count and percentages.';return;}
+  if(!payload.cash_enabled&&!payload.card_enabled){status.textContent='Enable at least one payment method.';return;}
+  if(!confirm('Save ordering settings for '+target.name+'? These affect new orders.'))return;
+  settingsSaving=true; lockSettings(true); status.textContent='Saving settings…';
+  try{
+    const {data,error}=await db.from('restaurants').update(payload).eq('id',target.id).select('id,name,slug,'+settingsColumns).single();
+    if(ticket!==settingsRequest||sessionEpoch!==epoch)return;
+    if(error||!data)throw error||Error('Save not confirmed');
+    settingsTarget=data; status.textContent='Settings saved successfully. Customer menu refreshes within its normal polling interval.';
+  }catch(err){if(ticket===settingsRequest&&sessionEpoch===epoch)status.textContent='Save not confirmed: '+err.message+'. Reopen settings to verify.';}
+  finally{settingsSaving=false;if(ticket===settingsRequest&&sessionEpoch===epoch)lockSettings(false);}
+});
+
 async function checkSession() {
+  resetSettings();
   const seq = ++epoch;
   $('dashboard').hidden = true; $('login').hidden = false;
   $('branding-section').hidden = true; selectedRestaurant = null;
