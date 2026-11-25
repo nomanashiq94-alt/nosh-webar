@@ -724,6 +724,7 @@ $('settings-form').addEventListener('submit',async e=>{
 });
 
 async function checkSession() {
+  ksReset();
   resetSettings();
   ++brandingRequest;
   const seq = ++epoch;
@@ -765,12 +766,13 @@ $('create-form').addEventListener('submit', async e => {
   finally { button.disabled = false; }
 });
 
-const viewTitles={dashboard:'Overview',restaurants:'Restaurants',settings:'Restaurant settings',branding:'Themes & branding',subscriptions:'Subscriptions',payments:'Payments',menu:'Menu management'};
+const viewTitles={dashboard:'Overview',restaurants:'Restaurants',settings:'Restaurant settings',branding:'Themes & branding',subscriptions:'Subscriptions',payments:'Payments',menu:'Menu management',kitchen:'Kitchen management'};
 function showView(view){
  if(!Object.hasOwn(viewTitles,view))view='dashboard';
  document.querySelectorAll('[data-view]').forEach(n=>n.classList.toggle('view-hidden',n.dataset.view!==view));
  document.querySelectorAll('[data-nav]').forEach(n=>{if(n.dataset.nav===view)n.setAttribute('aria-current','page');else n.removeAttribute('aria-current');});
  $('view-title').textContent=viewTitles[view];
+ if(view==='kitchen')ksLoad();else ksClose();
 }
 function renderPickers(restaurants){
  document.querySelectorAll('[data-picker]').forEach(panel=>{
@@ -786,6 +788,33 @@ document.querySelectorAll('[data-nav]').forEach(b=>b.onclick=()=>showView(b.data
 $('nav-toggle').onclick=()=>document.body.classList.toggle('sidebar-closed');
 try{document.body.classList.toggle('light',localStorage.getItem('nosh-admin-theme')==='light');}catch{}
 $('theme-toggle').onclick=()=>{document.body.classList.toggle('light');try{localStorage.setItem('nosh-admin-theme',document.body.classList.contains('light')?'light':'dark');}catch{}};
+
+// Kitchen management — server authorization is enforced by the Edge Function.
+let ksStaff=[], ksRestaurants=[], ksMode='', ksTarget=null, ksBusy=false, ksTicket=0;
+function ksClose(){ $('ks-form').reset(); $('ks-form').hidden=true; ksMode=''; ksTarget=null; }
+function ksReset(){ ++ksTicket; ksClose(); ksStaff=[]; ksRestaurants=[]; $('ks-rows').replaceChildren(); $('ks-stats').replaceChildren(); $('ks-status').textContent=''; }
+async function ksCall(body){
+ const {data,error}=await db.functions.invoke('manage-kitchen-staff',{body});
+ if(error){let detail;try{detail=await error.context.json();}catch{} throw Error(detail?.error||error.message);}
+ if(!data?.success)throw Error(data?.error||'Request not confirmed');return data;
+}
+function ksLock(value){ksBusy=value;for(const el of $('kitchen-management').querySelectorAll('button,input,select'))el.disabled=value;}
+function ksOption(value,label){const o=document.createElement('option');o.value=value;o.textContent=label;return o;}
+function ksRender(){
+ const stats=$('ks-stats');stats.replaceChildren();
+ for(const [label,value] of [['Total accounts',ksStaff.length],['Active',ksStaff.filter(s=>s.is_active).length],['Disabled',ksStaff.filter(s=>!s.is_active).length]]){const c=document.createElement('div');c.className='billing-stat';const l=document.createElement('small');l.textContent=label;const v=document.createElement('strong');v.textContent=value;c.append(l,v);stats.append(c);}
+ const rows=$('ks-rows');rows.replaceChildren();const q=$('ks-search').value.trim().toLowerCase(), f=$('ks-filter').value;
+ for(const s of ksStaff){const r=ksRestaurants.find(r=>r.id===s.restaurant_id);const name=r?.name||'Unassigned / unknown';if(f&&f!==s.restaurant_id)continue;if(![name,s.username,s.display_name].join(' ').toLowerCase().includes(q))continue;
+ const tr=document.createElement('tr');for(const v of [name,s.display_name||'Not configured',s.username||'Legacy email login']){const td=document.createElement('td');td.textContent=v;tr.append(td);}const td=document.createElement('td');const badge=document.createElement('span');badge.className='status-pill '+(s.is_active?'status-active':'status-suspended');badge.textContent=s.is_active?'Active':'Disabled';td.append(badge);tr.append(td);const actions=document.createElement('td');
+ for(const [label,fn] of [['Edit',()=>ksOpen('update_profile',s)],['Reset password',()=>ksOpen('reset_password',s)],[s.is_active?'Disable':'Enable',()=>{if(confirm((s.is_active?'Disable':'Enable')+' account for '+name+'?'))ksMutate({action:'set_active',user_id:s.user_id,is_active:!s.is_active});}]]){const b=document.createElement('button');b.type='button';b.textContent=label;b.disabled=ksBusy;b.onclick=fn;actions.append(b);}tr.append(actions);rows.append(tr);}
+ if(!rows.children.length){const tr=document.createElement('tr');const td=document.createElement('td');td.colSpan=5;td.textContent='No matching accounts.';tr.append(td);rows.append(tr);}
+}
+async function ksLoad(){if(ksBusy||$('dashboard').hidden)return;const ticket=++ksTicket, session=epoch;ksLock(true);$('ks-status').textContent='Loading accounts…';try{const [result,restaurants]=await Promise.all([ksCall({action:'list'}),db.from('restaurants').select('id,name,status').order('name')]);if(ticket!==ksTicket||session!==epoch)return;if(restaurants.error)throw restaurants.error;ksStaff=result.staff||[];ksRestaurants=restaurants.data||[];const f=$('ks-filter'), old=f.value;f.replaceChildren(ksOption('','All restaurants'),...ksRestaurants.map(r=>ksOption(r.id,r.name)));if([...f.options].some(o=>o.value===old))f.value=old;ksRender();$('ks-status').textContent='Accounts loaded.';}catch(e){if(ticket===ksTicket){ksStaff=[];ksRestaurants=[];ksRender();$('ks-status').textContent='Could not load accounts: '+e.message;}}finally{ksLock(false);}}
+function ksOpen(mode,s=null){if(ksBusy)return;ksClose();ksMode=mode;ksTarget=s;const create=mode==='create', edit=mode==='update_profile';$('ks-title').textContent=create?'Create kitchen account':(edit?'Edit staff name':'Reset password')+' — '+(s.username||s.display_name||'Legacy account');for(const [key,visible] of [['restaurant',create],['user',create],['name',create||edit],['password',!edit]]){$('ks-'+key+'-label').hidden=!visible;$('ks-'+key).required=visible;}$('ks-restaurant').replaceChildren(ksOption('','Select restaurant'),...ksRestaurants.filter(r=>r.status==='active').map(r=>ksOption(r.id,r.name)));$('ks-name').value=s?.display_name||'';$('ks-form').hidden=false;$('ks-form').scrollIntoView({behavior:'smooth',block:'nearest'});}
+async function ksMutate(body){if(ksBusy||$('dashboard').hidden)return;const session=epoch;ksLock(true);$('ks-status').textContent='Saving…';let saved=false;try{const result=await ksCall(body);if(session!==epoch)return;saved=true;ksClose();$('ks-status').textContent=result.message;}catch(e){if(session===epoch)$('ks-status').textContent='Request not confirmed: '+e.message+' — refresh before retrying.';}finally{$('ks-password').value='';ksLock(false);}if(saved&&session===epoch){await ksLoad();if(session===epoch)$('ks-status').textContent='Saved. '+$('ks-status').textContent;}}
+$('ks-form').onsubmit=e=>{e.preventDefault();if(!ksMode||ksBusy)return;const body={action:ksMode};if(ksTarget)body.user_id=ksTarget.user_id;if(ksMode==='create'){body.restaurant_id=$('ks-restaurant').value;body.username=$('ks-user').value.trim().toLowerCase();}if(ksMode!=='reset_password')body.display_name=$('ks-name').value.trim();if(ksMode!=='update_profile'){body.password=$('ks-password').value;if(body.password.length<12||new TextEncoder().encode(body.password).length>72){$('ks-status').textContent='Password must be 12 characters minimum and 72 bytes maximum.';return;}}ksMutate(body);};
+$('ks-create').onclick=()=>ksOpen('create');$('ks-cancel').onclick=ksClose;$('ks-refresh').onclick=()=>{ksClose();ksLoad();};$('ks-search').oninput=ksRender;$('ks-filter').onchange=ksRender;$('ks-link').onclick=async()=>{const url=new URL('kitchen.html',location.href).href;try{await navigator.clipboard.writeText(url);$('ks-status').textContent='Shared kitchen login link copied.';}catch{$('ks-status').textContent=url;}};
+
 showView('dashboard');
 
 checkSession();

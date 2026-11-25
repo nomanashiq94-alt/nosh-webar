@@ -805,9 +805,10 @@
           <button data-nav="branding" type="button">Themes &amp; branding</button>
           <button data-nav="subscriptions" type="button">Subscriptions</button>
           <button data-nav="payments" type="button">Payments</button>
+          <button data-nav="kitchen" type="button">Kitchen management</button>
           <button data-nav="menu" type="button">Menu management</button>
         </nav>
-        <p class="hint">Kitchen staff &amp; analytics — upcoming</p>
+        <p class="hint">Analytics — upcoming</p>
       </aside>
 
       <header id="topbar">
@@ -816,6 +817,14 @@
         <button id="theme-toggle" type="button">Light / dark</button>
         <button id="logout">Sign out</button>
       </header>
+
+      <section data-view="kitchen" id="kitchen-management">
+<h2>Kitchen accounts</h2><p class="hint">Manage staff access for each restaurant. Disabled accounts cannot access orders. Automatic logout is pending.</p>
+<div class="billing-grid" id="ks-stats"></div>
+<div class="row"><input id="ks-search" type="search" placeholder="Search staff or restaurant" aria-label="Search kitchen accounts"><select id="ks-filter" aria-label="Filter restaurant"></select><button id="ks-refresh" type="button">Refresh</button><button id="ks-create" type="button">+ Create account</button><button id="ks-link" type="button">Copy kitchen link</button></div>
+<p id="ks-status" role="status"></p>
+<form id="ks-form" class="renew-panel" hidden autocomplete="off"><h3 id="ks-title"></h3><label id="ks-restaurant-label">Restaurant<select id="ks-restaurant"></select></label><label id="ks-name-label">Staff name<input id="ks-name" maxlength="100"></label><label id="ks-user-label">Username<input id="ks-user" maxlength="30" pattern="[a-z0-9_]{3,30}"></label><label id="ks-password-label">Password (minimum 12 characters)<input id="ks-password" type="password" autocomplete="new-password" minlength="12"></label><button type="submit">Save</button><button id="ks-cancel" type="button">Cancel</button></form>
+<div class="payment-table-wrap"><table class="billing-table"><thead><tr><th>Restaurant</th><th>Staff name</th><th>Username</th><th>Status</th><th>Actions</th></tr></thead><tbody id="ks-rows"></tbody></table></div></section>
 
       <section class="selector-panel" data-view="menu">
         <h2>Select restaurant</h2>
