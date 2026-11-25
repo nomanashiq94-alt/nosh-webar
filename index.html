@@ -367,6 +367,36 @@
     }
     #restaurant-brand-icon img { background: #fff; }
     #toast-notification { color: var(--brand-button-text) !important; }
+
+    /* Opt-in overrides: NULL fields retain legacy styling. */
+    html.custom-background, html.custom-background body,
+    .custom-background #ar-modal, .custom-background #ar-modal .bg-slate-950,
+    .custom-background #cart-drawer .bg-slate-950 { background-color: var(--theme-background) !important; }
+    .custom-card header, .custom-card [data-dish-card], .custom-card #cart-drawer,
+    .custom-card #checkout-modal > div, .custom-card #order-confirm-modal > div,
+    .custom-card body .bg-slate-900, .custom-card body .bg-slate-800,
+    .custom-card body .bg-slate-800\/60, .custom-card body .bg-slate-900\/50,
+    .custom-card body .bg-slate-900\/80,
+    .custom-card .max-w-md > .p-3\.5.bg-gradient-to-r,
+    .custom-card #menu-container .bg-amber-500\/10 { background-color: var(--theme-card) !important; }
+    .custom-text body, .custom-text body .text-white,
+    .custom-text body .text-slate-100, .custom-text body .text-slate-200,
+    .custom-text body .text-slate-300, .custom-text body .text-slate-400,
+    .custom-text body .text-slate-500, .custom-text body .text-slate-700,
+    .custom-text .max-w-md > .p-3\.5.bg-gradient-to-r .text-amber-300,
+    .custom-text .max-w-md > .p-3\.5.bg-gradient-to-r .text-amber-400 { color: var(--theme-text) !important; }
+    .custom-price [data-dish-price], .custom-price #modal-item-price,
+    .custom-price #cart-total, .custom-price #checkout-total-val,
+    .custom-price #cart-items-list span.text-amber-400 { color: var(--theme-price) !important; }
+    .custom-theme #menu-container button.bg-amber-500\/10 { border-color: var(--restaurant-secondary) !important; color: var(--theme-text,var(--brand-accent)) !important; }
+    .custom-theme #menu-container button.bg-amber-500\/10 i { color: inherit !important; }
+    .custom-theme .bg-gradient-to-r.from-amber-500, .custom-theme .bg-gradient-to-tr.from-amber-500,
+    .custom-theme .bg-amber-500, .custom-theme .ar-button { color: var(--brand-button-text) !important; }
+    .custom-theme .bg-gradient-to-r.from-amber-500 *, .custom-theme .bg-gradient-to-tr.from-amber-500 *,
+    .custom-theme .bg-amber-500 *, .custom-theme .ar-button * { color: inherit !important; }
+    .custom-theme #cart-badge-floating { background-color: var(--restaurant-primary) !important; color: var(--brand-button-text) !important; }
+    .custom-text #order-form input::placeholder { color: var(--theme-text); opacity: .65; }
+
   </style>
   <script>
     (function () {
@@ -380,7 +410,7 @@
         try {
           const { data, error } = await window.createNoshClient()
             .from('restaurants')
-            .select('id,name,slug,logo_url,primary_color,secondary_color')
+            .select('id,name,slug,logo_url,primary_color,secondary_color,background_color,card_color,text_color,price_color,button_text_color')
             .eq('id', context.id)
             .eq('status', 'active')
             .single();
@@ -396,7 +426,8 @@
         const secondary = validColor(restaurant.secondary_color, '#fb923c');
         const name = String(restaurant.name || 'Restaurant').slice(0, 80);
         const logo = typeof restaurant.logo_url === 'string' && /^https:\/\//i.test(restaurant.logo_url) ? restaurant.logo_url : '';
-        const key = [restaurant.id, name, primary, secondary, logo].join('|');
+        const themeColors = [restaurant.background_color,restaurant.card_color,restaurant.text_color,restaurant.price_color,restaurant.button_text_color].map(v => validColor(v, ''));
+        const key = [restaurant.id, name, primary, secondary, logo, ...themeColors].join('|');
         if (key === lastBrandKey) return true;
         lastBrandKey = key;
         document.documentElement.style.setProperty('--restaurant-primary', primary);
@@ -411,6 +442,16 @@
         const accentLinear = accentRgb.map(v => v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
         const accentLum = 0.2126 * accentLinear[0] + 0.7152 * accentLinear[1] + 0.0722 * accentLinear[2];
         document.documentElement.style.setProperty('--brand-accent', accentLum > 0.28 ? accent : '#fbbf24');
+        const root = document.documentElement;
+        const names = ['background','card','text','price','button'];
+        themeColors.forEach((value,i) => {
+          root.classList.toggle('custom-'+names[i], Boolean(value));
+          if(value) root.style.setProperty('--theme-'+names[i], value);
+          else root.style.removeProperty('--theme-'+names[i]);
+        });
+        root.classList.toggle('custom-theme', themeColors.some(Boolean));
+        if(themeColors[4]) root.style.setProperty('--brand-button-text', themeColors[4]);
+
         document.getElementById('restaurant-brand-name').textContent = name;
         document.title = name + ' · Menu & Order';
         const icon = document.getElementById('restaurant-brand-icon');
