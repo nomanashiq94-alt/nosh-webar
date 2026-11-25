@@ -822,3 +822,220 @@
 
       <section class="selector-panel" data-view="subscriptions">
         <h2>Select restaurant</h2>
+        <div data-picker="subscriptions"></div>
+      </section>
+
+      <section class="selector-panel" data-view="payments">
+        <h2>Select restaurant</h2>
+        <div data-picker="payments"></div>
+      </section>
+
+      <section class="selector-panel" data-view="branding">
+        <h2>Select restaurant</h2>
+        <div data-picker="branding"></div>
+      </section>
+
+      <section class="selector-panel" data-view="settings">
+        <h2>Select restaurant</h2>
+        <div data-picker="settings"></div>
+      </section>
+
+      <section data-view="restaurants">
+        <h2>Add restaurant</h2>
+        <form id="create-form">
+          <label>Restaurant name <input id="name" maxlength="120" placeholder="Pizza Hub" required="" /></label>
+          <label>URL slug <input id="slug" maxlength="60" pattern="[a-z0-9]+(-[a-z0-9]+)*" placeholder="pizza-hub" required="" /></label>
+          <button type="submit">Create restaurant</button>
+        </form>
+        <small>New restaurant starts with an empty menu. Kitchen accounts are configured separately.</small>
+      </section>
+
+      <section data-view="dashboard" id="billing-overview">
+        <h2>Billing Overview</h2>
+        <p class="hint">Live records from Supabase. Expected monthly fees are not payments received. Subscription statuses are calculated live in Supabase; payment status is tracked separately. Subscription enforcement is configurable per restaurant; suspended restaurants in enforce mode cannot receive new orders.</p>
+        <div class="billing-grid" id="billing-summary">
+          <div class="billing-stat">Loading billing records…</div>
+        </div>
+        <h3>Subscription Alerts</h3>
+        <p class="hint">Expiring, grace-period and suspended-status alerts. Status is calculated automatically. Order blocking applies only when access mode is Enforce and status is Suspended.</p>
+        <div class="billing-alerts" id="billing-alerts"></div>
+      </section>
+
+      <section data-view="restaurants">
+        <h2>Restaurants</h2>
+        <button id="reload" type="button">Refresh list</button>
+        <label>Search restaurants <input id="restaurant-search" placeholder="Name or slug" type="search" /></label>
+        <ul id="restaurants"></ul>
+      </section>
+
+      <section data-view="settings" hidden="" id="settings-section">
+        <h2>Restaurant Settings</h2>
+        <p id="settings-restaurant"></p>
+        <p class="hint">Changes apply to new orders only. Open customer carts may need to refresh.</p>
+        <form id="settings-form">
+          <div class="payment-grid">
+            <label>Total tables <input id="settings-tables" max="500" min="1" required="" step="1" type="number" /></label>
+            <label>Tax (%) <input id="settings-tax" max="100" min="0" required="" step="0.01" type="number" /></label>
+            <label>Service charge (%) <input id="settings-service" max="100" min="0" required="" step="0.01" type="number" /></label>
+          </div>
+          <label><input id="settings-cash" type="checkbox" /> Cash at Counter</label>
+          <label><input id="settings-card" type="checkbox" /> Card at Counter</label>
+          <label><input id="settings-name" type="checkbox" /> Customer name required</label>
+          <label><input id="settings-phone" type="checkbox" /> Phone number required</label>
+          <div class="renew-panel">
+            <h3>Live bill preview</h3>
+            <p class="hint">Example subtotal: Rs. 1,000. Both charges are calculated on subtotal.</p>
+            <p id="settings-preview"></p>
+          </div>
+          <p id="settings-status" role="status"></p>
+          <button id="settings-save" type="submit">Save Settings</button>
+          <button id="settings-close" type="button">Close</button>
+        </form>
+      </section>
+
+      <section data-view="payments" hidden="" id="payment-section">
+        <h2>Payment History</h2>
+        <p id="payment-restaurant"></p>
+        <p class="hint">Shows up to 1,000 latest payments per restaurant; totals are for displayed records only. Only actual received payments should be recorded. Saving a payment does not automatically renew a subscription. Past records cannot be edited or deleted here.</p>
+        <div class="billing-grid" id="payment-totals"></div>
+        <h3>Record payment</h3>
+        <form id="payment-form">
+          <div class="payment-grid">
+            <label>Amount received <input id="payment-amount" max="9999999999.99" min="0.01" required="" step="0.01" type="number" /></label>
+            <label>Currency <select id="payment-currency"><option value="PKR">PKR</option><option value="USD">USD</option></select></label>
+            <label>Payment date <input id="payment-date" required="" type="date" /></label>
+            <label>Payment method <select id="payment-method" required=""><option value="">Choose method…</option><option value="cash">Cash</option><option value="bank_transfer">Bank Transfer</option><option value="jazzcash">JazzCash</option><option value="easypaisa">Easypaisa</option><option value="other">Other</option></select></label>
+          </div>
+          <label>Transaction reference (optional) <input id="payment-reference" maxlength="250" placeholder="Bank transaction ID or receipt number" /></label>
+          <label>Notes (optional) <textarea id="payment-notes" maxlength="2000" rows="2" style="display:block;width:min(100%,520px);"></textarea></label>
+          <p id="payment-status" role="status"></p>
+          <button id="payment-save" type="submit">Record Received Payment</button>
+          <button id="payment-close" type="button">Close Payment History</button>
+        </form>
+        <h3>Previous payments</h3>
+        <div class="payment-table-wrap">
+          <table class="payment-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Amount</th>
+                <th>Method</th>
+                <th>Reference</th>
+                <th>Notes</th>
+              </tr>
+            </thead>
+            <tbody id="payment-rows">
+              <tr><td colspan="5">Select a restaurant.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section data-view="branding" hidden="" id="branding-section">
+        <h2>Edit restaurant branding</h2>
+        <p id="selected-restaurant"></p>
+        <form id="branding-form">
+          <label>Restaurant name <input id="brand-name" maxlength="120" required="" /></label>
+          <div class="row">
+            <label>Primary color <input id="brand-primary" type="color" value="#f59e0b" /></label>
+            <label>Secondary color <input id="brand-secondary" type="color" value="#fbbf24" /></label>
+          </div>
+          <label>Logo URL (HTTPS) <input id="brand-logo" placeholder="https://example.com/logo.png" style="width:min(100%,520px)" type="url" /></label>
+          <p class="hint">Optional: paste an HTTPS image URL, or upload a logo directly below.</p>
+          <label>Upload logo (JPG, PNG or WebP, max 2 MB) <input accept="image/jpeg,image/png,image/webp" id="brand-logo-file" type="file" /></label>
+          <button id="upload-logo" type="button">Upload logo &amp; save URL</button>
+          <p class="hint" id="logo-upload-status" role="status"></p>
+          <img alt="Restaurant logo preview" hidden="" id="logo-preview" />
+          <p id="branding-status" role="status"></p>
+          <button id="save-branding" type="submit">Save branding</button>
+          <button id="cancel-branding" type="button">Close</button>
+        </form>
+      </section>
+
+      <section data-view="subscriptions" hidden="" id="subscription-section">
+        <h2>Manage subscription</h2>
+        <p id="subscription-restaurant"></p>
+        <form id="subscription-form">
+          <label>Plan name <input id="sub-plan" maxlength="80" placeholder="Standard" required="" /></label>
+          <label>Monthly fee <input id="sub-fee" max="999999999" min="0" required="" step="0.01" type="number" /></label>
+          <label>Currency <select id="sub-currency"><option value="PKR">PKR</option><option value="USD">USD</option></select></label>
+          <label>Subscription start date <input id="sub-start" type="date" /></label>
+          <label>Subscription expiry date <input id="sub-expiry" type="date" /></label>
+          <label>Grace period (days) <input id="sub-grace" max="30" min="0" required="" step="1" type="number" value="5" /></label>
+          <p class="hint">Default 5 days after expiry. Changing grace days can affect ordering if Enforce mode is enabled.</p>
+          <label>Payment status <select id="sub-payment"><option value="unpaid">Unpaid</option><option value="paid">Paid</option><option value="overdue">Overdue</option></select></label>
+          <label>Internal notes <textarea id="sub-notes" maxlength="2000" rows="3" style="display:block;width:min(100%,520px);"></textarea></label>
+          <p class="hint">Saving subscription details can affect ordering when Enforce mode is enabled. No payments are collected automatically.</p>
+          <p id="subscription-status" role="status"></p>
+          <button id="save-subscription" type="submit">Save subscription</button>
+          <button id="close-subscription" type="button">Close</button>
+        </form>
+
+        <div class="renew-panel" id="access-control-panel">
+          <h3>Subscription Access Control</h3>
+          <p class="hint">Monitor Only never blocks orders. Enforce Subscription blocks new orders after expiry plus grace period. Existing orders remain available.</p>
+          <p>Current subscription status: <strong id="access-current-status">Loading…</strong></p>
+          <p>Current saved mode: <strong id="access-saved-mode">Loading…</strong></p>
+          <label for="sub-access-mode">Order access mode</label>
+          <select id="sub-access-mode">
+            <option value="monitor">Monitor Only (orders always allowed)</option>
+            <option value="enforce">Enforce Subscription (block when suspended)</option>
+          </select>
+          <p id="access-status" role="status"></p>
+          <button id="save-access-mode" type="button">Save Access Mode</button>
+        </div>
+
+        <button id="start-renew" type="button">Renew Subscription</button>
+
+        <div class="renew-panel" hidden="" id="renew-panel">
+          <h3>Renew subscription</h3>
+          <p class="hint">Only renew after verifying that payment was actually received. Payment and expiry will be saved together in Supabase.</p>
+          <form id="renew-form">
+            <label>Amount received <input id="renew-amount" max="999999999" min="0.01" required="" step="0.01" type="number" /></label>
+            <label>Currency <select disabled="" id="renew-currency"><option value="PKR">PKR</option><option value="USD">USD</option></select></label>
+            <label>Payment method <select id="renew-method" required=""><option value="">Choose method…</option><option value="cash">Cash</option><option value="bank_transfer">Bank Transfer</option><option value="jazzcash">JazzCash</option><option value="easypaisa">Easypaisa</option><option value="other">Other</option></select></label>
+            <label>Payment received on <input id="renew-paid-on" required="" type="date" /></label>
+            <label>Transaction reference (optional) <input id="renew-reference" maxlength="250" /></label>
+            <label>Notes (optional) <textarea id="renew-notes" maxlength="2000" rows="2" style="display:block;width:min(100%,520px);"></textarea></label>
+            <label>New expiry date <input id="renew-expiry" required="" type="date" /></label>
+            <label>Payment confirmation <select id="renew-confirm" required=""><option value="">Select…</option><option value="received">I confirm payment was received</option></select></label>
+            <p id="renew-status" role="status"></p>
+            <button id="renew-submit" type="submit">Confirm &amp; renew</button>
+            <button id="renew-cancel" type="button">Cancel renewal</button>
+          </form>
+        </div>
+      </section>
+
+      <section data-view="subscriptions">
+        <h2>Restaurant subscriptions</h2>
+        <div style="overflow-x:auto">
+          <table class="billing-table">
+            <thead>
+              <tr>
+                <th>Restaurant</th>
+                <th>Plan</th>
+                <th>Monthly fee</th>
+                <th>Payment</th>
+                <th>Subscription status</th>
+                <th>Expiry</th>
+                <th>Grace</th>
+                <th>Access mode</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="billing-rows">
+              <tr><td colspan="9">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="hint" id="billing-error" role="status"></p>
+      </section>
+    </div>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase-config.js"></script>
+  <script src="nosh-cloud.js"></script>
+  <script src="super-admin.js"></script>
+</body>
+</html>
