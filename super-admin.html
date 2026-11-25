@@ -1,86 +1,824 @@
 <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta content="width=device-width,initial-scale=1" name="viewport" />
+  <title>Nosh WebAR — Super Admin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #090d16;
+      --bg-elevated: #0f1623;
+      --panel: #131c2e;
+      --panel-hover: #182338;
+      --line: rgba(148, 163, 184, 0.14);
+      --line-strong: rgba(148, 163, 184, 0.25);
+      --ink: #f1f5f9;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+      --accent-hover: #7dd3fc;
+      --accent-ink: #082f49;
+      --accent-soft: rgba(56, 189, 248, 0.14);
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+      --shadow-md: 0 8px 24px -4px rgba(0, 0, 0, 0.45);
+      --shadow-lg: 0 20px 40px -12px rgba(0, 0, 0, 0.6);
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+    }
 
-<html lang="en"><head><meta charset="utf-8"/><meta content="width=device-width,initial-scale=1" name="viewport"/><title>Nosh WebAR — Super Admin</title>
-<style>
-body{font:16px system-ui;background:#101318;color:#f3f4f6;margin:0}main{max-width:920px;margin:40px auto;padding:20px}section{background:#1c222b;border:1px solid #343d49;border-radius:16px;padding:22px;margin:18px 0}input,button,select{font:inherit;padding:12px;border-radius:9px;margin:5px 4px 5px 0}input,select{background:#111827;border:1px solid #596273;color:white;max-width:95%}button{background:#fbbf24;border:0;cursor:pointer;font-weight:700}button:disabled{opacity:.5}a{color:#fbbf24}#message{min-height:24px}li{padding:12px;border-bottom:1px solid #343d49}small{color:#b9c1ce}label{display:block;margin-top:10px}input[type=color]{width:72px;height:46px;padding:4px;vertical-align:middle}#logo-preview{max-width:120px;max-height:90px;object-fit:contain;background:#fff;border-radius:8px;padding:6px}#subscription-section[hidden],#branding-section[hidden],#dashboard[hidden],#login[hidden]{display:none} .hint{color:#b9c1ce;font-size:13px} .row{display:flex;flex-wrap:wrap;gap:12px;align-items:center} .restaurant-edit{margin-left:12px;padding:8px 12px} #branding-status{min-height:20px}.billing-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:12px;margin:16px 0}.billing-stat{background:#111827;border:1px solid #343d49;border-radius:12px;padding:14px}.billing-stat strong{display:block;font-size:23px;margin-top:6px}.billing-table{width:100%;border-collapse:collapse;text-align:left;font-size:14px}.billing-table th,.billing-table td{padding:10px;border-bottom:1px solid #343d49;white-space:nowrap}.billing-table button{font-size:13px;padding:8px}.billing-warning{color:#fbbf24}.billing-ok{color:#86efac}.billing-alerts{display:grid;gap:10px;margin:12px 0}.billing-alert{border:1px solid #475569;border-radius:10px;padding:12px;background:#111827}.billing-alert strong{display:block}.billing-alert button{margin-top:8px}.renew-panel{margin-top:16px;padding:14px;border:1px solid #596273;border-radius:12px;background:#111827}.renew-panel[hidden]{display:none}#payment-section[hidden]{display:none}.payment-actions{display:flex;flex-wrap:wrap;gap:8px}.payment-actions button{font-size:13px}.payment-table-wrap{overflow-x:auto}.payment-table{width:100%;border-collapse:collapse;font-size:14px}.payment-table th,.payment-table td{padding:10px;text-align:left;border-bottom:1px solid #343d49;white-space:nowrap}.payment-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px}.payment-grid input,.payment-grid select{width:90%;box-sizing:border-box}.status-pill{display:inline-block;padding:5px 9px;border-radius:999px;border:1px solid #64748b;font-size:12px;font-weight:700;white-space:nowrap}.status-active{color:#86efac;border-color:#166534}.status-expiring_soon,.status-grace_period{color:#fbbf24;border-color:#a16207}.status-suspended{color:#fca5a5;border-color:#b91c1c}.status-not_configured,.status-no_expiry,.status-not_started{color:#cbd5e1}.billing-alert.status-suspended{border-color:#b91c1c}.billing-alert.status-grace_period{border-color:#a16207}
+    body.light {
+      color-scheme: light;
+      --bg: #f4f7fb;
+      --bg-elevated: #ffffff;
+      --panel: #ffffff;
+      --panel-hover: #f8fafc;
+      --line: #e2e8f0;
+      --line-strong: #cbd5e1;
+      --ink: #0f172a;
+      --muted: #64748b;
+      --accent: #0284c7;
+      --accent-hover: #0369a1;
+      --accent-ink: #ffffff;
+      --accent-soft: rgba(2, 132, 199, 0.1);
+      --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.05);
+      --shadow-md: 0 6px 20px -4px rgba(15, 23, 42, 0.07);
+      --shadow-lg: 0 20px 40px -12px rgba(15, 23, 42, 0.12);
+    }
 
-:root{color-scheme:dark;--bg:#0b1220;--panel:#152033;--line:#29394e;--ink:#edf3fa;--muted:#a8b8cc;--accent:#67e8f9}*{box-sizing:border-box}body{background:var(--bg);color:var(--ink);font:15px system-ui}main{max-width:none;margin:0;padding:24px 28px}main:has(#dashboard:not([hidden])){padding-left:268px}main>h1{font-size:20px;margin:0 0 12px}section{background:var(--panel);border-color:var(--line);padding:24px;box-shadow:0 4px 18px #0001}section h2{font-size:20px;margin-top:0}input,select,textarea{background:var(--bg)!important;color:var(--ink)!important;border-color:var(--line)!important}button{background:var(--accent);color:#102033;font-size:13px}button:hover{filter:brightness(.92)}small,.hint{color:var(--muted)}a{color:var(--accent)}#sidebar{position:fixed;inset:0 auto 0 0;width:244px;background:var(--panel);border-right:1px solid var(--line);padding:24px 16px;overflow:auto}.brand{font-size:22px;font-weight:800;margin-bottom:30px}.brand small{display:block;font-size:10px;letter-spacing:2px;margin-top:8px}nav button{display:block;width:100%;text-align:left;background:transparent;color:var(--muted);margin:4px 0;padding:13px}nav button[aria-current=page]{background:#164e63;color:#cffafe}#topbar{display:flex;gap:12px;align-items:center;border-bottom:1px solid var(--line);padding-bottom:12px}#view-title{flex:1;font-size:20px}#restaurants{list-style:none;padding:0;display:grid;gap:12px}#restaurants li{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:18px}#restaurants strong{display:block;font-size:18px}#restaurants small{display:block;margin:6px 0 12px}.restaurant-edit{margin:4px}.billing-stat,.billing-alert,.renew-panel{background:var(--bg);border-color:var(--line)}.billing-table th,.billing-table td,.payment-table th,.payment-table td{border-color:var(--line)}.billing-stat strong{color:var(--accent)}[hidden],.view-hidden{display:none!important}.selector-panel button{margin:4px}#login{max-width:480px;margin:8vh auto}#login input{display:block;width:100%}body.light{color-scheme:light;--bg:#edf2f7;--panel:#fff;--line:#d5e0ea;--ink:#17263a;--muted:#52647b;--accent:#0891b2}body.light button{color:#fff}body.light nav button{color:var(--muted)}body.light nav button[aria-current=page]{color:#fff}body.light .status-active{color:#166534}body.light .status-expiring_soon,body.light .status-grace_period{color:#92400e}body.light .status-suspended{color:#991b1b}body.light .status-not_configured,body.light .status-no_expiry,body.light .status-not_started{color:#475569}body.sidebar-closed #sidebar{display:none}body.sidebar-closed main{padding-left:28px}@media(max-width:760px){main,main:has(#dashboard:not([hidden])){padding:14px}#sidebar{position:static;width:auto;border:0;margin-bottom:12px}nav{display:flex;flex-wrap:wrap}nav button{width:auto}#topbar{flex-wrap:wrap}section{padding:14px}body.sidebar-closed main{padding:14px}}
-</style></head>
-<body><main><h1>Nosh WebAR · Super Admin</h1><p id="message" role="status"></p><section id="login"><h2>Sign in</h2><form id="login-form"><label>Email <input autocomplete="username" id="email" required="" type="email"/></label><label>Password <input autocomplete="current-password" id="password" required="" type="password"/></label><button type="submit">Sign in</button></form></section>
-<div hidden="" id="dashboard"><aside id="sidebar"><div class="brand">◈ Nosh WebAR <small>SUPER ADMIN</small></div><nav><button data-nav="dashboard" type="button">Overview</button><button data-nav="restaurants" type="button">Restaurants</button><button data-nav="settings" type="button">Restaurant settings</button><button data-nav="branding" type="button">Themes &amp; branding</button><button data-nav="subscriptions" type="button">Subscriptions</button><button data-nav="payments" type="button">Payments</button><button data-nav="menu" type="button">Menu management</button></nav><p class="hint">Kitchen staff &amp; analytics — upcoming</p></aside><header id="topbar"><button aria-label="Toggle sidebar" id="nav-toggle" type="button">☰</button><h2 id="view-title">Overview</h2><button id="theme-toggle" type="button">Light / dark</button><button id="logout">Sign out</button></header><section class="selector-panel" data-view="menu"><h2>Select restaurant</h2><div data-picker="menu"></div></section><section class="selector-panel" data-view="subscriptions"><h2>Select restaurant</h2><div data-picker="subscriptions"></div></section><section class="selector-panel" data-view="payments"><h2>Select restaurant</h2><div data-picker="payments"></div></section><section class="selector-panel" data-view="branding"><h2>Select restaurant</h2><div data-picker="branding"></div></section><section class="selector-panel" data-view="settings"><h2>Select restaurant</h2><div data-picker="settings"></div></section><section data-view="restaurants"><h2>Add restaurant</h2><form id="create-form"><label>Restaurant name <input id="name" maxlength="120" placeholder="Pizza Hub" required=""/></label><label>URL slug <input id="slug" maxlength="60" pattern="[a-z0-9]+(-[a-z0-9]+)*" placeholder="pizza-hub" required=""/></label><button type="submit">Create restaurant</button></form><small>New restaurant starts with an empty menu. Kitchen accounts are configured separately.</small></section>
-<section data-view="dashboard" id="billing-overview"><h2>Billing Overview</h2><p class="hint">Live records from Supabase. Expected monthly fees are not payments received. Subscription statuses are calculated live in Supabase; payment status is tracked separately. Subscription enforcement is configurable per restaurant; suspended restaurants in enforce mode cannot receive new orders.</p><div class="billing-grid" id="billing-summary"><div class="billing-stat">Loading billing records…</div></div><h3>Subscription Alerts</h3><p class="hint">Expiring, grace-period and suspended-status alerts. Status is calculated automatically. Order blocking applies only when access mode is Enforce and status is Suspended.</p><div class="billing-alerts" id="billing-alerts"></div></section>
-<section data-view="restaurants"><h2>Restaurants</h2><button id="reload" type="button">Refresh list</button><label>Search restaurants <input id="restaurant-search" placeholder="Name or slug" type="search"/></label><ul id="restaurants"></ul></section>
-<section data-view="settings" hidden="" id="settings-section"><h2>Restaurant Settings</h2><p id="settings-restaurant"></p><p class="hint">Changes apply to new orders only. Open customer carts may need to refresh.</p><form id="settings-form"><div class="payment-grid">
-<label>Total tables <input id="settings-tables" max="500" min="1" required="" step="1" type="number"/></label>
-<label>Tax (%) <input id="settings-tax" max="100" min="0" required="" step="0.01" type="number"/></label>
-<label>Service charge (%) <input id="settings-service" max="100" min="0" required="" step="0.01" type="number"/></label></div>
-<label><input id="settings-cash" type="checkbox"/> Cash at Counter</label><label><input id="settings-card" type="checkbox"/> Card at Counter</label><label><input id="settings-name" type="checkbox"/> Customer name required</label><label><input id="settings-phone" type="checkbox"/> Phone number required</label>
-<div class="renew-panel"><h3>Live bill preview</h3><p class="hint">Example subtotal: Rs. 1,000. Both charges are calculated on subtotal.</p><p id="settings-preview"></p></div><p id="settings-status" role="status"></p><button id="settings-save" type="submit">Save Settings</button><button id="settings-close" type="button">Close</button></form></section>
-<section data-view="payments" hidden="" id="payment-section">
-<h2>Payment History</h2>
-<p id="payment-restaurant"></p>
-<p class="hint">Shows up to 1,000 latest payments per restaurant; totals are for displayed records only. Only actual received payments should be recorded. Saving a payment does not automatically renew a subscription. Past records cannot be edited or deleted here.</p>
-<div class="billing-grid" id="payment-totals"></div>
-<h3>Record payment</h3>
-<form id="payment-form">
-<div class="payment-grid">
-<label>Amount received <input id="payment-amount" max="9999999999.99" min="0.01" required="" step="0.01" type="number"/></label>
-<label>Currency <select id="payment-currency"><option value="PKR">PKR</option><option value="USD">USD</option></select></label>
-<label>Payment date <input id="payment-date" required="" type="date"/></label>
-<label>Payment method <select id="payment-method" required=""><option value="">Choose method…</option><option value="cash">Cash</option><option value="bank_transfer">Bank Transfer</option><option value="jazzcash">JazzCash</option><option value="easypaisa">Easypaisa</option><option value="other">Other</option></select></label>
-</div>
-<label>Transaction reference (optional) <input id="payment-reference" maxlength="250" placeholder="Bank transaction ID or receipt number"/></label>
-<label>Notes (optional) <textarea id="payment-notes" maxlength="2000" rows="2" style="display:block;width:min(100%,520px);background:#111827;color:white;border:1px solid #596273;border-radius:9px;padding:12px"></textarea></label>
-<p id="payment-status" role="status"></p>
-<button id="payment-save" type="submit">Record Received Payment</button>
-<button id="payment-close" type="button">Close Payment History</button>
-</form>
-<h3>Previous payments</h3>
-<div class="payment-table-wrap"><table class="payment-table"><thead><tr><th>Date</th><th>Amount</th><th>Method</th><th>Reference</th><th>Notes</th></tr></thead><tbody id="payment-rows"><tr><td colspan="5">Select a restaurant.</td></tr></tbody></table></div>
-</section>
-<section data-view="branding" hidden="" id="branding-section"><h2>Edit restaurant branding</h2><p id="selected-restaurant"></p><form id="branding-form"><label>Restaurant name <input id="brand-name" maxlength="120" required=""/></label><div class="row"><label>Primary color <input id="brand-primary" type="color" value="#f59e0b"/></label><label>Secondary color <input id="brand-secondary" type="color" value="#fbbf24"/></label></div><label>Logo URL (HTTPS) <input id="brand-logo" placeholder="https://example.com/logo.png" style="width:min(100%,520px)" type="url"/></label><p class="hint">Optional: paste an HTTPS image URL, or upload a logo directly below.</p><label>Upload logo (JPG, PNG or WebP, max 2 MB) <input accept="image/jpeg,image/png,image/webp" id="brand-logo-file" type="file"/></label><button id="upload-logo" type="button">Upload logo &amp; save URL</button><p class="hint" id="logo-upload-status" role="status"></p><img alt="Restaurant logo preview" hidden="" id="logo-preview"/><p id="branding-status" role="status"></p><button id="save-branding" type="submit">Save branding</button><button id="cancel-branding" type="button">Close</button></form></section>
-<section data-view="subscriptions" hidden="" id="subscription-section">
-<h2>Manage subscription</h2>
-<p id="subscription-restaurant"></p>
-<form id="subscription-form">
-<label>Plan name <input id="sub-plan" maxlength="80" placeholder="Standard" required=""/></label>
-<label>Monthly fee <input id="sub-fee" max="999999999" min="0" required="" step="0.01" type="number"/></label>
-<label>Currency <select id="sub-currency"><option value="PKR">PKR</option><option value="USD">USD</option></select></label>
-<label>Subscription start date <input id="sub-start" type="date"/></label>
-<label>Subscription expiry date <input id="sub-expiry" type="date"/></label>
-<label>Grace period (days) <input id="sub-grace" max="30" min="0" required="" step="1" type="number" value="5"/></label><p class="hint">Default 5 days after expiry. Changing grace days can affect ordering if Enforce mode is enabled.</p><label>Payment status <select id="sub-payment"><option value="unpaid">Unpaid</option><option value="paid">Paid</option><option value="overdue">Overdue</option></select></label>
-<label>Internal notes <textarea id="sub-notes" maxlength="2000" rows="3" style="display:block;width:min(100%,520px);background:#111827;color:white;border:1px solid #596273;border-radius:9px;padding:12px"></textarea></label>
-<p class="hint">Saving subscription details can affect ordering when Enforce mode is enabled. No payments are collected automatically.</p>
-<p id="subscription-status" role="status"></p>
-<button id="save-subscription" type="submit">Save subscription</button>
-<button id="close-subscription" type="button">Close</button>
-</form>
-<div class="renew-panel" id="access-control-panel">
-<h3>Subscription Access Control</h3>
-<p class="hint">Monitor Only never blocks orders. Enforce Subscription blocks new orders after expiry plus grace period. Existing orders remain available.</p>
-<p>Current subscription status: <strong id="access-current-status">Loading…</strong></p>
-<p>Current saved mode: <strong id="access-saved-mode">Loading…</strong></p>
-<label for="sub-access-mode">Order access mode</label>
-<select id="sub-access-mode"><option value="monitor">Monitor Only (orders always allowed)</option><option value="enforce">Enforce Subscription (block when suspended)</option></select>
-<p id="access-status" role="status"></p>
-<button id="save-access-mode" type="button">Save Access Mode</button>
-</div>
-<button id="start-renew" type="button">Renew Subscription</button>
-<div class="renew-panel" hidden="" id="renew-panel">
-<h3>Renew subscription</h3>
-<p class="hint">Only renew after verifying that payment was actually received. Payment and expiry will be saved together in Supabase.</p>
-<form id="renew-form">
-<label>Amount received <input id="renew-amount" max="999999999" min="0.01" required="" step="0.01" type="number"/></label>
-<label>Currency <select disabled="" id="renew-currency"><option value="PKR">PKR</option><option value="USD">USD</option></select></label>
-<label>Payment method <select id="renew-method" required=""><option value="">Choose method…</option><option value="cash">Cash</option><option value="bank_transfer">Bank Transfer</option><option value="jazzcash">JazzCash</option><option value="easypaisa">Easypaisa</option><option value="other">Other</option></select></label>
-<label>Payment received on <input id="renew-paid-on" required="" type="date"/></label>
-<label>Transaction reference (optional) <input id="renew-reference" maxlength="250"/></label>
-<label>Notes (optional) <textarea id="renew-notes" maxlength="2000" rows="2" style="display:block;width:min(100%,520px);background:#111827;color:white;border:1px solid #596273;border-radius:9px;padding:12px"></textarea></label>
-<label>New expiry date <input id="renew-expiry" required="" type="date"/></label>
-<label>Payment confirmation <select id="renew-confirm" required=""><option value="">Select…</option><option value="received">I confirm payment was received</option></select></label>
-<p id="renew-status" role="status"></p>
-<button id="renew-submit" type="submit">Confirm &amp; renew</button>
-<button id="renew-cancel" type="button">Cancel renewal</button>
-</form></div>
-</section>
-<section data-view="subscriptions"><h2>Restaurant subscriptions</h2><div style="overflow-x:auto"><table class="billing-table"><thead><tr><th>Restaurant</th><th>Plan</th><th>Monthly fee</th><th>Payment</th><th>Subscription status</th><th>Expiry</th><th>Grace</th><th>Access mode</th><th>Action</th></tr></thead><tbody id="billing-rows"><tr><td colspan="9">Loading…</td></tr></tbody></table></div><p class="hint" id="billing-error" role="status"></p></section></div></main><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="supabase-config.js"></script><script src="nosh-cloud.js"></script><script src="super-admin.js"></script></body></html>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+      background: var(--bg);
+      color: var(--ink);
+      margin: 0;
+      -webkit-font-smoothing: antialiased;
+      transition: background-color 0.2s ease, color 0.2s ease;
+    }
+
+    /* Layout */
+    main {
+      max-width: none;
+      margin: 0;
+      padding: 24px 32px;
+      min-height: 100vh;
+    }
+
+    main:has(#dashboard:not([hidden])) {
+      padding-left: 292px;
+    }
+
+    body.sidebar-closed main:has(#dashboard:not([hidden])) {
+      padding-left: 32px;
+    }
+
+    main > h1 {
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin: 0 0 8px;
+    }
+
+    main:has(#dashboard:not([hidden])) > h1 {
+      display: none;
+    }
+
+    /* Status Toast / Global Message */
+    #message {
+      min-height: 20px;
+      margin: 0 0 16px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--accent);
+    }
+
+    #message:empty {
+      display: none;
+    }
+
+    /* Sidebar */
+    #sidebar {
+      position: fixed;
+      inset: 0 auto 0 0;
+      width: 260px;
+      background: var(--panel);
+      border-right: 1px solid var(--line);
+      padding: 24px 16px;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      z-index: 30;
+    }
+
+    body.sidebar-closed #sidebar {
+      display: none;
+    }
+
+    .brand {
+      font-size: 19px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: var(--ink);
+      padding: 4px 12px 20px;
+      margin-bottom: 16px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .brand small {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      color: var(--accent);
+      margin-top: 4px;
+    }
+
+    nav {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      flex: 1;
+    }
+
+    nav button {
+      display: flex;
+      align-items: center;
+      width: 100%;
+      text-align: left;
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid transparent;
+      border-radius: var(--radius-sm);
+      margin: 0;
+      padding: 10px 12px;
+      font-size: 13.5px;
+      font-weight: 500;
+      box-shadow: none;
+      transition: all 0.15s ease;
+    }
+
+    nav button:hover {
+      background: var(--panel-hover);
+      color: var(--ink);
+      filter: none;
+    }
+
+    nav button[aria-current="page"] {
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-weight: 600;
+      border-color: rgba(56, 189, 248, 0.22);
+    }
+
+    body.light nav button[aria-current="page"] {
+      color: var(--accent);
+      border-color: rgba(2, 132, 199, 0.2);
+    }
+
+    #sidebar > .hint {
+      margin-top: auto;
+      padding: 12px;
+      background: var(--bg);
+      border: 1px dashed var(--line-strong);
+      border-radius: var(--radius-sm);
+      font-size: 12px;
+    }
+
+    /* Topbar */
+    #topbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      background: color-mix(in srgb, var(--bg) 85%, transparent);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--line);
+      padding: 12px 0 16px;
+      margin-bottom: 24px;
+    }
+
+    #view-title {
+      flex: 1;
+      margin: 0;
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    #nav-toggle,
+    #theme-toggle,
+    #logout {
+      background: var(--panel);
+      color: var(--ink);
+      border: 1px solid var(--line-strong);
+      box-shadow: var(--shadow-sm);
+      font-weight: 500;
+    }
+
+    #nav-toggle:hover,
+    #theme-toggle:hover {
+      background: var(--panel-hover);
+      filter: none;
+    }
+
+    #logout:hover {
+      border-color: rgba(239, 68, 68, 0.5);
+      color: #f87171;
+      background: rgba(239, 68, 68, 0.08);
+      filter: none;
+    }
+
+    /* Cards & Sections */
+    section {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-lg);
+      padding: 24px 28px;
+      margin: 0 0 20px;
+      box-shadow: var(--shadow-md);
+    }
+
+    section h2 {
+      font-size: 17px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      margin: 0 0 12px;
+      color: var(--ink);
+    }
+
+    section h3 {
+      font-size: 15px;
+      font-weight: 600;
+      margin: 22px 0 8px;
+      color: var(--ink);
+    }
+
+    /* Login Card */
+    #login {
+      max-width: 420px;
+      margin: 10vh auto;
+      padding: 36px 32px;
+      box-shadow: var(--shadow-lg);
+    }
+
+    #login h2 {
+      font-size: 22px;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+
+    #login input {
+      display: block;
+      width: 100%;
+    }
+
+    #login button[type="submit"] {
+      width: 100%;
+      margin-top: 16px;
+      padding: 12px;
+      font-size: 14px;
+    }
+
+    /* Typography & Helpers */
+    small,
+    .hint {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    /* Forms & Inputs */
+    label {
+      display: block;
+      margin-top: 14px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--ink);
+    }
+
+    label:has(input[type="checkbox"]) {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-right: 20px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    input,
+    select,
+    textarea {
+      font-family: inherit;
+      font-size: 13.5px;
+      background: var(--bg) !important;
+      color: var(--ink) !important;
+      border: 1px solid var(--line-strong) !important;
+      border-radius: var(--radius-sm);
+      padding: 10px 12px;
+      margin: 6px 6px 6px 0;
+      max-width: 100%;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    input:focus,
+    select:focus,
+    textarea:focus {
+      outline: none;
+      border-color: var(--accent) !important;
+      box-shadow: 0 0 0 3px var(--accent-soft);
+    }
+
+    input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      margin: 0;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+
+    input[type="color"] {
+      width: 64px;
+      height: 40px;
+      padding: 3px;
+      cursor: pointer;
+      vertical-align: middle;
+    }
+
+    input[type="file"] {
+      padding: 8px;
+      font-size: 13px;
+    }
+
+    /* Buttons */
+    button {
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      background: var(--accent);
+      color: var(--accent-ink);
+      border: 1px solid transparent;
+      border-radius: var(--radius-sm);
+      padding: 9px 16px;
+      margin: 6px 6px 6px 0;
+      cursor: pointer;
+      box-shadow: var(--shadow-sm);
+      transition: all 0.15s ease;
+    }
+
+    button:hover:not(:disabled) {
+      background: var(--accent-hover);
+      transform: translateY(-1px);
+    }
+
+    button:active:not(:disabled) {
+      transform: translateY(0);
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* Secondary / Cancel / Close Buttons */
+    #settings-close,
+    #payment-close,
+    #cancel-branding,
+    #close-subscription,
+    #renew-cancel,
+    #reload,
+    #upload-logo,
+    .selector-panel button {
+      background: var(--bg);
+      color: var(--ink);
+      border: 1px solid var(--line-strong);
+    }
+
+    #settings-close:hover:not(:disabled),
+    #payment-close:hover:not(:disabled),
+    #cancel-branding:hover:not(:disabled),
+    #close-subscription:hover:not(:disabled),
+    #renew-cancel:hover:not(:disabled),
+    #reload:hover:not(:disabled),
+    #upload-logo:hover:not(:disabled),
+    .selector-panel button:hover:not(:disabled) {
+      background: var(--panel-hover);
+      border-color: var(--accent);
+    }
+
+    .selector-panel button {
+      margin: 4px 8px 4px 0;
+      padding: 10px 16px;
+      font-weight: 500;
+    }
+
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      align-items: center;
+    }
+
+    #logo-preview {
+      max-width: 120px;
+      max-height: 90px;
+      object-fit: contain;
+      background: #ffffff;
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius-sm);
+      padding: 8px;
+      margin-top: 10px;
+    }
+
+    /* Billing & Stat Cards */
+    .billing-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
+      gap: 14px;
+      margin: 18px 0;
+    }
+
+    .billing-stat {
+      background: var(--bg);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      padding: 16px 18px;
+      transition: border-color 0.15s ease;
+    }
+
+    .billing-stat:hover {
+      border-color: var(--line-strong);
+    }
+
+    .billing-stat small {
+      display: block;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--muted);
+    }
+
+    .billing-stat strong {
+      display: block;
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--accent);
+      margin-top: 6px;
+    }
+
+    /* Alerts */
+    .billing-alerts {
+      display: grid;
+      gap: 12px;
+      margin: 14px 0;
+    }
+
+    .billing-alert {
+      background: var(--bg);
+      border: 1px solid var(--line-strong);
+      border-left-width: 4px;
+      border-radius: var(--radius-md);
+      padding: 14px 18px;
+    }
+
+    .billing-alert strong {
+      display: inline-block;
+      font-size: 15px;
+      margin-right: 10px;
+      margin-bottom: 4px;
+    }
+
+    .billing-alert button {
+      margin-top: 10px;
+      padding: 7px 14px;
+      font-size: 12.5px;
+    }
+
+    .billing-alert.status-suspended {
+      border-color: rgba(239, 68, 68, 0.4);
+      border-left-color: #ef4444;
+    }
+
+    .billing-alert.status-grace_period,
+    .billing-alert.status-expiring_soon {
+      border-color: rgba(245, 158, 11, 0.4);
+      border-left-color: #f59e0b;
+    }
+
+    /* Restaurant List */
+    #restaurants {
+      list-style: none;
+      padding: 0;
+      margin: 16px 0 0;
+      display: grid;
+      gap: 12px;
+    }
+
+    #restaurants li {
+      background: var(--bg);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      padding: 18px 20px;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    #restaurants li:hover {
+      border-color: var(--line-strong);
+      box-shadow: var(--shadow-sm);
+    }
+
+    #restaurants strong {
+      display: inline-block;
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--ink);
+    }
+
+    #restaurants small {
+      display: inline-block;
+      margin: 0 0 12px 6px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 12.5px;
+    }
+
+    #restaurants li button {
+      background: var(--panel);
+      color: var(--ink);
+      border: 1px solid var(--line-strong);
+      padding: 7px 12px;
+      font-size: 12.5px;
+      margin: 4px 6px 0 0;
+    }
+
+    #restaurants li button:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: var(--accent-soft);
+    }
+
+    .restaurant-edit {
+      margin: 4px;
+    }
+
+    /* Panels */
+    .renew-panel {
+      margin-top: 20px;
+      padding: 18px 20px;
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius-md);
+      background: var(--bg);
+    }
+
+    .renew-panel h3 {
+      margin-top: 0;
+    }
+
+    .payment-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 14px;
+    }
+
+    .payment-grid input,
+    .payment-grid select {
+      width: 100%;
+    }
+
+    /* Tables */
+    .payment-table-wrap,
+    section > div[style*="overflow-x:auto"] {
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      margin-top: 12px;
+    }
+
+    .billing-table,
+    .payment-table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 13.5px;
+    }
+
+    .billing-table th,
+    .payment-table th {
+      background: var(--bg);
+      color: var(--muted);
+      font-size: 11.5px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      white-space: nowrap;
+    }
+
+    .billing-table td,
+    .payment-table td {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      white-space: nowrap;
+    }
+
+    .billing-table tbody tr:last-child td,
+    .payment-table tbody tr:last-child td {
+      border-bottom: none;
+    }
+
+    .billing-table tbody tr:hover,
+    .payment-table tbody tr:hover {
+      background: var(--panel-hover);
+    }
+
+    .billing-table button {
+      font-size: 12px;
+      padding: 6px 12px;
+      margin: 0 6px 0 0;
+    }
+
+    /* Status Pills */
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 10px;
+      border-radius: 999px;
+      border: 1px solid transparent;
+      font-size: 11.5px;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+      white-space: nowrap;
+    }
+
+    .status-active {
+      background: rgba(34, 197, 94, 0.14);
+      color: #4ade80;
+      border-color: rgba(34, 197, 94, 0.3);
+    }
+
+    .status-expiring_soon,
+    .status-grace_period {
+      background: rgba(245, 158, 11, 0.14);
+      color: #fbbf24;
+      border-color: rgba(245, 158, 11, 0.3);
+    }
+
+    .status-suspended {
+      background: rgba(239, 68, 68, 0.14);
+      color: #f87171;
+      border-color: rgba(239, 68, 68, 0.3);
+    }
+
+    .status-not_configured,
+    .status-no_expiry,
+    .status-not_started {
+      background: rgba(148, 163, 184, 0.14);
+      color: #cbd5e1;
+      border-color: rgba(148, 163, 184, 0.25);
+    }
+
+    body.light .status-active {
+      background: #dcfce7;
+      color: #15803d;
+      border-color: #bbf7d0;
+    }
+
+    body.light .status-expiring_soon,
+    body.light .status-grace_period {
+      background: #fef3c7;
+      color: #b45309;
+      border-color: #fde68a;
+    }
+
+    body.light .status-suspended {
+      background: #fee2e2;
+      color: #b91c1c;
+      border-color: #fecaca;
+    }
+
+    body.light .status-not_configured,
+    body.light .status-no_expiry,
+    body.light .status-not_started {
+      background: #f1f5f9;
+      color: #475569;
+      border-color: #e2e8f0;
+    }
+
+    .billing-warning { color: #fbbf24; }
+    .billing-ok { color: #4ade80; }
+
+    /* Visibility Utilities (Critical for JS) */
+    #subscription-section[hidden],
+    #branding-section[hidden],
+    #dashboard[hidden],
+    #login[hidden],
+    .renew-panel[hidden],
+    #payment-section[hidden],
+    [hidden],
+    .view-hidden {
+      display: none !important;
+    }
+
+    /* Responsive */
+    @media (max-width: 760px) {
+      main,
+      main:has(#dashboard:not([hidden])),
+      body.sidebar-closed main,
+      body.sidebar-closed main:has(#dashboard:not([hidden])) {
+        padding: 16px;
+      }
+
+      #sidebar {
+        position: static;
+        width: auto;
+        border-right: none;
+        border-bottom: 1px solid var(--line);
+        border-radius: var(--radius-md);
+        margin-bottom: 16px;
+      }
+
+      nav {
+        flex-direction: row;
+        flex-wrap: wrap;
+      }
+
+      nav button {
+        width: auto;
+      }
+
+      #topbar {
+        flex-wrap: wrap;
+      }
+
+      section {
+        padding: 18px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Nosh WebAR · Super Admin</h1>
+    <p id="message" role="status"></p>
+
+    <section id="login">
+      <h2>Sign in</h2>
+      <form id="login-form">
+        <label>Email <input autocomplete="username" id="email" required="" type="email" /></label>
+        <label>Password <input autocomplete="current-password" id="password" required="" type="password" /></label>
+        <button type="submit">Sign in</button>
+      </form>
+    </section>
+
+    <div hidden="" id="dashboard">
+      <aside id="sidebar">
+        <div class="brand">◈ Nosh WebAR <small>SUPER ADMIN</small></div>
+        <nav>
+          <button data-nav="dashboard" type="button">Overview</button>
+          <button data-nav="restaurants" type="button">Restaurants</button>
+          <button data-nav="settings" type="button">Restaurant settings</button>
+          <button data-nav="branding" type="button">Themes &amp; branding</button>
+          <button data-nav="subscriptions" type="button">Subscriptions</button>
+          <button data-nav="payments" type="button">Payments</button>
+          <button data-nav="menu" type="button">Menu management</button>
+        </nav>
+        <p class="hint">Kitchen staff &amp; analytics — upcoming</p>
+      </aside>
+
+      <header id="topbar">
+        <button aria-label="Toggle sidebar" id="nav-toggle" type="button">☰</button>
+        <h2 id="view-title">Overview</h2>
+        <button id="theme-toggle" type="button">Light / dark</button>
+        <button id="logout">Sign out</button>
+      </header>
+
+      <section class="selector-panel" data-view="menu">
+        <h2>Select restaurant</h2>
+        <div data-picker="menu"></div>
+      </section>
+
+      <section class="selector-panel" data-view="subscriptions">
+        <h2>Select restaurant</h2>
