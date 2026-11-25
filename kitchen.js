@@ -5,7 +5,13 @@ let kitchenView = 'active';
 let historyOrders = [];
 const el=id=>document.getElementById(id);
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const money=v=>Number(v||0).toLocaleString('en-PK');
+const money=v=>Number(v||0).toLocaleString('en-PK',{minimumFractionDigits:2,maximumFractionDigits:2});
+function renderBill(o){
+  const fields=['subtotal','tax_percent','tax_amount','service_charge_percent','service_charge_amount'];
+  const complete=fields.every(k=>o[k]!=null && Number.isFinite(Number(o[k])));
+  const row=(label,value)=>`<div class="flex justify-between gap-2 text-sm"><span>${esc(label)}</span><span>Rs. ${money(value)}</span></div>`;
+  return `<div class="border-t border-slate-700 pt-3 space-y-1">${complete ? row('Subtotal',o.subtotal)+(Number(o.tax_percent)||Number(o.tax_amount)?row('Tax ('+Number(o.tax_percent)+'%)',o.tax_amount):'')+(Number(o.service_charge_percent)||Number(o.service_charge_amount)?row('Service charge ('+Number(o.service_charge_percent)+'%)',o.service_charge_amount):'') : '<p class="text-xs text-slate-400">Original billing breakdown unavailable</p>'}<div class="flex justify-between gap-2 font-bold text-amber-400"><span>Grand total</span><span>Rs. ${money(o.total)}</span></div></div>`;
+}
 function message(text){el('connection').textContent=text;}
 let audioContext, soundEnabled=false, beepTimer=null, pendingKnown=false;
 let tones=new Set();
@@ -66,9 +72,9 @@ function renderKitchen(){
     el('kitchen-list').innerHTML=historyOrders.length?historyOrders.map(o=>`
       <div class="rounded-2xl border border-slate-700 bg-slate-900 p-4 space-y-3">
         <div class="flex justify-between gap-3"><div><span class="text-xs text-amber-400">${esc(o.id)}</span><h3 class="text-lg font-bold">Table ${esc(String(o.table).padStart(2,'0'))}</h3></div><b>${esc(o.status)}</b></div>
-        <div class="text-xs text-slate-400"><p>Customer: ${esc(o.name)} (${esc(o.phone||'N/A')})</p><p>Payment: ${esc(o.payment)} at Counter</p><p>${esc(new Date(o.createdAt).toLocaleString())}</p></div>
+        <div class="text-xs text-slate-400"><p>Customer: ${esc(String(o.name??'').trim()||'Guest')} (${esc(o.phone||'N/A')})</p><p>Payment: ${esc(o.payment)} at Counter</p><p>${esc(new Date(o.createdAt).toLocaleString())}</p></div>
         <div class="bg-slate-950 p-3 rounded-xl space-y-1">${(Array.isArray(o.items)?o.items:[]).filter(i=>i && typeof i==='object').map(i=>`<div class="flex justify-between gap-2 text-sm"><span>${esc(i.quantity)} × ${esc(i.title)}</span><span>Rs. ${money(Number(i.price)*Number(i.quantity))}</span></div>`).join('')}</div>
-        <div class="flex justify-between items-center"><b class="text-amber-400">Rs. ${money(o.total)}</b><span class="text-xs text-slate-400">Archived · read-only</span></div>
+        ${renderBill(o)}<div class="text-xs text-slate-400">Archived · read-only</div>
       </div>`).join(''):'<p class="col-span-full text-slate-400 py-12 text-center">No archived orders found.</p>';
     return;
   }
@@ -78,9 +84,9 @@ function renderKitchen(){
   el('kitchen-list').innerHTML=orders.length?orders.map(o=>`
     <div class="rounded-2xl border border-slate-700 bg-slate-900 p-4 space-y-3">
       <div class="flex justify-between gap-3"><div><span class="text-xs text-amber-400">${esc(o.id)}</span><h3 class="text-lg font-bold">Table ${esc(String(o.table).padStart(2,'0'))}</h3></div><b>${esc(o.status)}</b></div>
-      <div class="text-xs text-slate-400"><p>Customer: ${esc(o.name)} (${esc(o.phone||'N/A')})</p><p>Payment: ${esc(o.payment)} at Counter</p><p>${esc(new Date(o.createdAt).toLocaleString())}</p></div>
-      <div class="bg-slate-950 p-3 rounded-xl space-y-1">${o.items.filter(i=>i && typeof i === "object").map(i=>`<div class="flex justify-between gap-2 text-sm"><span>${esc(i.quantity)} × ${esc(i.title)}</span><span>Rs. ${money(Number(i.price)*Number(i.quantity))}</span></div>`).join('')}</div>
-      <div class="flex justify-between items-center"><b class="text-amber-400">Rs. ${money(o.total)}</b>
+      <div class="text-xs text-slate-400"><p>Customer: ${esc(String(o.name??'').trim()||'Guest')} (${esc(o.phone||'N/A')})</p><p>Payment: ${esc(o.payment)} at Counter</p><p>${esc(new Date(o.createdAt).toLocaleString())}</p></div>
+      <div class="bg-slate-950 p-3 rounded-xl space-y-1">${(Array.isArray(o.items)?o.items:[]).filter(i=>i && typeof i === "object").map(i=>`<div class="flex justify-between gap-2 text-sm"><span>${esc(i.quantity)} × ${esc(i.title)}</span><span>Rs. ${money(Number(i.price)*Number(i.quantity))}</span></div>`).join('')}</div>
+      ${renderBill(o)}<div class="flex justify-end items-center">
       <select aria-label="Order status" data-order="${esc(o.id)}" class="admin-input text-xs !w-auto">${STATUSES.map(s=>`<option ${s===o.status?'selected':''}>${s}</option>`).join('')}</select></div>
     </div>`).join(''):'<p class="col-span-full text-slate-400 py-12 text-center">No unarchived orders. Waiting for customers…</p>';
 }
