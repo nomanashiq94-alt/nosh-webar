@@ -7,6 +7,46 @@ const el=id=>document.getElementById(id);
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money=v=>Number(v||0).toLocaleString('en-PK');
 function message(text){el('connection').textContent=text;}
+let audioContext, soundEnabled=false, beepTimer=null, pendingKnown=false;
+let tones=new Set();
+function stopTones(){for(const tone of tones){try{tone.stop();}catch{}} tones.clear();}
+function stopAlarm(){clearInterval(beepTimer);beepTimer=null;stopTones();}
+function beep(){
+  if(!signedIn || !soundEnabled || audioContext?.state!=='running')return;
+  const now=audioContext.currentTime;
+  for(const offset of [0,0.25]){
+    const tone=audioContext.createOscillator(), gain=audioContext.createGain();
+    tone.type='sine';tone.frequency.value=880;
+    gain.gain.setValueAtTime(0.001,now+offset);
+    gain.gain.exponentialRampToValueAtTime(0.18,now+offset+0.025);
+    gain.gain.exponentialRampToValueAtTime(0.001,now+offset+0.19);
+    tone.connect(gain);gain.connect(audioContext.destination);tones.add(tone);
+    tone.onended=()=>{tones.delete(tone);tone.disconnect();gain.disconnect();};
+    tone.start(now+offset);tone.stop(now+offset+0.2);
+  }
+}
+function syncAlarm(){
+  const count=orders.filter(o=>o.status==='Received').length;
+  el('sound-panel').hidden=!signedIn;
+  el('pending-count').textContent='Pending orders: '+(pendingKnown?count:'checking…');
+  el('sound-toggle').textContent=soundEnabled?'Mute Sound':'Enable Sound';
+  el('sound-status').textContent=!soundEnabled?'Sound off · enable after opening this page.':audioContext?.state!=='running'?'Audio paused by browser · mute and enable again.':!pendingKnown?'Sound enabled · checking orders…':count?'Sound enabled · awaiting acceptance':'Sound enabled · waiting for new orders';
+  if(!signedIn || !soundEnabled || !count || audioContext?.state!=='running'){stopAlarm();return;}
+  if(beepTimer===null){beep();beepTimer=setInterval(beep,2500);}
+}
+async function enableSound(){
+  if(!signedIn)return false;
+  const epoch=generation;
+  try{
+    if(!audioContext){const Audio=window.AudioContext||window.webkitAudioContext;if(!Audio)throw Error('Audio not supported');audioContext=new Audio();audioContext.onstatechange=syncAlarm;}
+    await audioContext.resume();
+    if(epoch!==generation||!signedIn)return false;
+    if(audioContext.state!=='running')throw Error('Browser blocked audio');
+    soundEnabled=true;syncAlarm();return true;
+  }catch(error){soundEnabled=false;syncAlarm();el('sound-status').textContent=error.message;return false;}
+}
+el('sound-toggle').onclick=async()=>{if(soundEnabled){soundEnabled=false;syncAlarm();}else await enableSound();};
+el('sound-test').onclick=async()=>{if(await enableSound()){if(beepTimer===null)beep();}};
 function switchKitchenView(view){
   if(!['active','history'].includes(view))return;
   kitchenView=view;
@@ -47,14 +87,18 @@ function renderKitchen(){
 async function refreshOrders(){
   if(!signedIn || !kitchenRestaurantId)return;
   const epoch=generation, ticket=++request;
-  const view=kitchenView;
-  const {data,error}=await db.from('orders').select('*')
-    .eq('restaurant_id',kitchenRestaurantId)
-    .eq('archived',view==='history')
-    .order('createdAt',{ascending:false});
+  const view=kitchenView, restaurantId=kitchenRestaurantId;
+  const query=archived=>db.from('orders').select('*').eq('restaurant_id',restaurantId).eq('archived',archived).order('createdAt',{ascending:false});
+  const active=await query(false);
   if(epoch!==generation || ticket!==request || view!==kitchenView)return;
-  if(error){message('Could not load orders: '+error.message);return;}
-  if(view==='history')historyOrders=data;else orders=data;
+  if(active.error){message('Could not load active orders: '+active.error.message);return;}
+  orders=active.data||[];pendingKnown=true;syncAlarm();
+  if(view==='history'){
+    const history=await query(true);
+    if(epoch!==generation || ticket!==request || view!==kitchenView)return;
+    if(history.error){message('Could not load history: '+history.error.message);return;}
+    historyOrders=history.data||[];
+  }
   renderKitchen();
 }
 async function changeOrderStatus(id,status){
@@ -79,9 +123,13 @@ el('kitchen-list').addEventListener('change',async event=>{
   catch(error){message(error.message);await refreshOrders();}
   finally{event.target.disabled=false;}
 });
+let currentKitchenUser=null;
 async function sessionChanged(session){
+  if(session && signedIn && currentKitchenUser===session.user.id)return;
+  currentKitchenUser=session?.user.id||null;
   const epoch=++generation;
   signedIn=false;
+  soundEnabled=false;pendingKnown=false;stopAlarm();syncAlarm();
   kitchenRestaurantId = null;
   if(channel){db.removeChannel(channel);channel=null;}
   orders=[];historyOrders=[];el('kitchen-list').replaceChildren();el('kitchen-stats').textContent='';
@@ -93,7 +141,7 @@ async function sessionChanged(session){
   if(error||!data){message('This account has no kitchen access. Add its Auth UID to kitchen_staff.');return;}
   if(!data.restaurant_id){message('No restaurant assigned to this kitchen account.');return;}
   kitchenRestaurantId=data.restaurant_id;
-  signedIn=true;message('Connecting live orders…');
+  signedIn=true;syncAlarm();message('Connecting live orders…');
   channel=db.channel('kitchen-orders').on('postgres_changes',
     {event:'*',schema:'public',table:'orders',filter:'restaurant_id=eq.'+kitchenRestaurantId},()=>{refreshOrders().catch(e=>message(e.message));})
     .subscribe(status=>{
@@ -121,7 +169,7 @@ el('logout').onclick=async()=>{
 try{
   db=window.createNoshClient(true);
   db.auth.onAuthStateChange((event,session)=>{
-    if(['INITIAL_SESSION','SIGNED_IN','SIGNED_OUT','TOKEN_REFRESHED'].includes(event))
+    if(['INITIAL_SESSION','SIGNED_IN','SIGNED_OUT'].includes(event))
       setTimeout(()=>sessionChanged(session).catch(e=>message(e.message)),0);
   });
   setInterval(()=>refreshOrders().catch(e=>message(e.message)),15000);
