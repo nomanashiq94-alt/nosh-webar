@@ -6,12 +6,17 @@ async function refreshOrderingStatus() {
   if (!menuDb || !activeRestaurantId) return;
   const ticket = ++statusRequest;
   try {
-    const {data,error} = await menuDb.rpc('get_restaurant_ordering_status', {p_restaurant_id:activeRestaurantId});
+    const [{data,error}, config] = await Promise.all([
+      menuDb.rpc('get_restaurant_ordering_status', {p_restaurant_id:activeRestaurantId}),
+      menuDb.from('restaurants').select('table_count,tax_percent,service_charge_percent,cash_enabled,card_enabled,customer_name_required,customer_phone_required').eq('id',activeRestaurantId).eq('status','active').single()
+    ]);
     if (ticket !== statusRequest) return;
     if (error || typeof data !== 'boolean') throw error || Error('Invalid ordering status');
+    if(config.error || !config.data) throw config.error || Error('Settings unavailable');
+    applySettings(config.data);
     setOrderingState(data ? 'allowed' : 'blocked');
   } catch (error) {
-    if (ticket === statusRequest) setOrderingState('checking');
+    if (ticket === statusRequest) { restaurantSettings=null; setOrderingState('checking'); }
   }
 }
 function paintMenu() {
