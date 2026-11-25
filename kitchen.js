@@ -142,9 +142,10 @@ async function sessionChanged(session){
   el('login').classList.toggle('hidden',!!session);
   el('logout').classList.toggle('hidden',!session);
   if(!session){message('Sign in with an authorized kitchen account.');return;}
-  const {data,error}=await db.from('kitchen_staff').select('user_id, restaurant_id').eq('user_id',session.user.id).maybeSingle();
+  const {data,error}=await db.from('kitchen_staff').select('user_id, restaurant_id, is_active').eq('user_id',session.user.id).maybeSingle();
   if(epoch!==generation)return;
   if(error||!data){message('This account has no kitchen access. Add its Auth UID to kitchen_staff.');return;}
+  if(data.is_active!==true){message('Kitchen account disabled. Contact your administrator.');return;}
   if(!data.restaurant_id){message('No restaurant assigned to this kitchen account.');return;}
   kitchenRestaurantId=data.restaurant_id;
   signedIn=true;syncAlarm();message('Connecting live orders…');
@@ -160,14 +161,19 @@ async function sessionChanged(session){
 }
 el('login').addEventListener('submit',async event=>{
   event.preventDefault();
-  const button=event.target.querySelector('button');button.disabled=true;
+  const button=event.target.querySelector('button[type=submit]');button.disabled=true;
   try{
-    const {error}=await db.auth.signInWithPassword({email:el('email').value.trim(),password:el('password').value});
+    const identifier=el('email').value.trim();
+    const username=identifier.toLowerCase();
+    if(!identifier.includes('@')&&!/^[a-z0-9_]{3,30}$/.test(username))throw Error('Enter a valid username or email.');
+    const email=identifier.includes('@')?identifier:username+'@kitchen.nosh-webar.invalid';
+    const {error}=await db.auth.signInWithPassword({email,password:el('password').value});
     if(error)throw error;
-    el('password').value='';
+    el('password').value='';el('password').type='password';el('toggle-password').textContent='Show';el('toggle-password').setAttribute('aria-pressed','false');
   }catch(error){message('Sign in failed: '+error.message);}
   finally{button.disabled=false;}
 });
+el('toggle-password').onclick=()=>{const field=el('password');const show=field.type==='password';field.type=show?'text':'password';el('toggle-password').textContent=show?'Hide':'Show';el('toggle-password').setAttribute('aria-pressed',String(show));};
 el('logout').onclick=async()=>{
   const {error}=await db.auth.signOut();
   if(error)message('Sign out failed: '+error.message);
