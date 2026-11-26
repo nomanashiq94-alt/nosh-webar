@@ -130,7 +130,37 @@ el('kitchen-list').addEventListener('change',async event=>{
   finally{event.target.disabled=false;}
 });
 let currentKitchenUser=null;
+let accessCheck=null, forcedReason='', revoking=false;
+async function revokeKitchen(reason){
+  if(revoking)return;
+  revoking=true;forcedReason=reason;
+  await sessionChanged(null);
+  const button=el('login').querySelector('button[type=submit]');button.disabled=true;
+  try{
+    const {error}=await db.auth.signOut({scope:'local'});
+    if(error)throw error;
+  }catch(e){message(reason+' Sign out could not finish; reconnect and reload.');return;}
+  finally{revoking=false;button.disabled=false;}
+  message(reason);
+}
+async function checkKitchenAccess(){
+  if(!signedIn||revoking)return false;
+  const epoch=generation, user=currentKitchenUser, restaurant=kitchenRestaurantId;
+  if(accessCheck?.epoch===epoch)return accessCheck.promise;
+  const promise=(async()=>{
+    try{
+      const {data,error}=await db.from('kitchen_staff').select('restaurant_id,is_active').eq('user_id',user).maybeSingle().abortSignal(AbortSignal.timeout(8000));
+      if(epoch!==generation)return false;
+      if(error)throw error;
+      if(!data||data.is_active!==true||data.restaurant_id!==restaurant){await revokeKitchen('Kitchen access disabled or changed. Contact your administrator.');return false;}
+      return true;
+    }catch(e){if(epoch===generation)await revokeKitchen('Kitchen access could not be verified. Please reconnect and sign in again.');return false;}
+  })();
+  accessCheck={epoch,promise};
+  try{return await promise;}finally{if(accessCheck?.promise===promise)accessCheck=null;}
+}
 async function sessionChanged(session){
+  if(session && revoking)return;
   if(session && signedIn && currentKitchenUser===session.user.id)return;
   currentKitchenUser=session?.user.id||null;
   const epoch=++generation;
@@ -141,12 +171,12 @@ async function sessionChanged(session){
   orders=[];historyOrders=[];el('kitchen-list').replaceChildren();el('kitchen-stats').textContent='';
   el('login').classList.toggle('hidden',!!session);
   el('logout').classList.toggle('hidden',!session);
-  if(!session){message('Sign in with an authorized kitchen account.');return;}
+  if(!session){message(forcedReason||'Sign in with an authorized kitchen account.');return;}
   const {data,error}=await db.from('kitchen_staff').select('user_id, restaurant_id, is_active').eq('user_id',session.user.id).maybeSingle();
   if(epoch!==generation)return;
-  if(error||!data){message('This account has no kitchen access. Add its Auth UID to kitchen_staff.');return;}
-  if(data.is_active!==true){message('Kitchen account disabled. Contact your administrator.');return;}
-  if(!data.restaurant_id){message('No restaurant assigned to this kitchen account.');return;}
+  if(error||!data){await revokeKitchen('Kitchen access could not be verified. Contact your administrator.');return;}
+  if(data.is_active!==true){await revokeKitchen('Kitchen account disabled. Contact your administrator.');return;}
+  if(!data.restaurant_id){await revokeKitchen('No restaurant assigned to this kitchen account.');return;}
   kitchenRestaurantId=data.restaurant_id;
   signedIn=true;syncAlarm();message('Connecting live orders…');
   channel=db.channel('kitchen-orders').on('postgres_changes',
@@ -163,6 +193,7 @@ el('login').addEventListener('submit',async event=>{
   event.preventDefault();
   const button=event.target.querySelector('button[type=submit]');button.disabled=true;
   try{
+    forcedReason='';
     const identifier=el('email').value.trim();
     const username=identifier.toLowerCase();
     if(!identifier.includes('@')&&!/^[a-z0-9_]{3,30}$/.test(username))throw Error('Enter a valid username or email.');
@@ -184,8 +215,9 @@ try{
     if(['INITIAL_SESSION','SIGNED_IN','SIGNED_OUT'].includes(event))
       setTimeout(()=>sessionChanged(session).catch(e=>message(e.message)),0);
   });
+  setInterval(()=>checkKitchenAccess().catch(e=>message(e.message)),5000);
   setInterval(()=>refreshOrders().catch(e=>message(e.message)),15000);
-  window.addEventListener('online',()=>refreshOrders().catch(e=>message(e.message)));
-  window.addEventListener('offline',()=>message('Offline · displayed orders may be out of date'));
-  document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshOrders().catch(e=>message(e.message));});
+  window.addEventListener('online',async()=>{if(await checkKitchenAccess())await refreshOrders();});
+  window.addEventListener('offline',()=>{if(signedIn)revokeKitchen('Offline · please reconnect and sign in again.');});
+  document.addEventListener('visibilitychange',async()=>{if(!document.hidden && await checkKitchenAccess())await refreshOrders();});
 }catch(error){message(error.message);}
