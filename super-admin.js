@@ -819,7 +819,7 @@ $('ks-create').onclick=()=>ksOpen('create');$('ks-cancel').onclick=ksClose;$('ks
 
 
 // Step 56.5.2: read-only analytics, using existing admin session.
-let anTicket=0, anTab='overview';
+let anTicket=0, anTab='overview', anExport=null;
 function anSelectTab(tab){
  anTab=tab;
  document.querySelectorAll('[data-an-tab]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.anTab===tab)));
@@ -827,10 +827,10 @@ function anSelectTab(tab){
  $('an-restaurant-label').hidden=tab!=='overview';
 }
 document.querySelectorAll('[data-an-tab]').forEach(b=>b.onclick=()=>{anSelectTab(b.dataset.anTab);anLoad();});
-function anReset(){++anTicket;$('an-details').replaceChildren();$('an-stats').replaceChildren();$('an-breakdown').replaceChildren();$('an-status').textContent='';$('an-refresh').disabled=false;}
+function anReset(){++anTicket;anExport=null;$('an-export').disabled=true;$('an-details').replaceChildren();$('an-stats').replaceChildren();$('an-breakdown').replaceChildren();$('an-status').textContent='';$('an-refresh').disabled=false;}
 async function anOpen(){
  anSelectTab('overview'); anReset(); const ticket=anTicket, session=epoch;
- const today=pakistanToday(); $('an-start').value=today.slice(0,4)+'-01-01';$('an-end').value=today;
+ $('an-period').value='year'; const today=pakistanToday(); $('an-start').value=today.slice(0,4)+'-01-01';$('an-end').value=today;
  $('an-restaurant').replaceChildren(new Option('All restaurants',''));
  $('an-refresh').disabled=true; $('an-status').textContent='Loading restaurants…';
  try{const {data,error}=await db.from('restaurants').select('id,name').order('name');
@@ -852,6 +852,7 @@ async function anLoad(){
  const money=v=>formatMoney(v,r.currency||'PKR');
  for(const [label,value] of [['Total orders',r.total_orders],['Served order value',money(r.served_value)],['Served orders',r.served_orders],['Pending orders',r.pending_orders],['Cancelled orders',r.cancelled_orders],['Average served order value',money(r.average_order_value)]]){const c=document.createElement('div');c.className='billing-stat';const l=document.createElement('small');l.textContent=label;const v=document.createElement('strong');v.textContent=value;c.append(l,v);$('an-stats').append(c);}
  for(const [label,value,color] of [['Served',r.served_orders,'#22c55e'],['Pending',r.pending_orders,'#eab308'],['Cancelled',r.cancelled_orders,'#ef4444']]){const l=document.createElement('div');l.textContent=label+' — '+value;const t=document.createElement('div');t.className='an-track';const f=document.createElement('div');f.className='an-fill';f.style.background=color;f.style.width=Math.min(100,Math.max(0,r.total_orders?100*value/r.total_orders:0))+'%';t.append(f);$('an-breakdown').append(l,t);}
+ anDonut(r);anSave(r,start,end,id);
  $('an-status').textContent='Report: '+start+' to '+end+(Number(r.total_orders)===0?' · No orders in this period.':'');
 
  }catch(e){if(ticket===anTicket&&session===epoch){$('an-stats').replaceChildren();$('an-breakdown').replaceChildren();$('an-status').textContent='Could not load analytics: '+e.message;}}
@@ -896,13 +897,22 @@ async function anDetails(start,end,id,ticket,session){
     table(panel,'Subscription status snapshot',['Status','Restaurants'],rows('subscription_status_breakdown',x=>[x.subscription_status==='expired'?'Expired':subscriptionStatusLabels[x.subscription_status]||x.subscription_status,x.restaurant_count]));
     table(panel,'Current subscriptions',['Restaurant','Plan','Monthly fee','Status','Expiry','Grace days','Access mode'],rows('subscriptions',x=>[x.restaurant_name,x.plan_name,cash(x.monthly_fee,x.currency),x.subscription_status==='expired'?'Expired':subscriptionStatusLabels[x.subscription_status]||x.subscription_status,x.expires_on,x.grace_period_days,x.access_mode]));
    }
-   status.textContent='Loaded.';
+   if(fn==='get_restaurant_comparison_analytics')anBars(panel,'Orders by restaurant',r.restaurants.map(x=>[x.restaurant_name,x.total_orders]));
+   if(fn==='get_saas_subscription_analytics')for(const c of new Set(r.monthly_fee_summary.map(x=>x.currency)))anBars(panel,'Monthly fees — '+c,r.subscriptions.filter(x=>x.currency===c&&x.monthly_fee!=null).map(x=>[x.restaurant_name,x.monthly_fee]));
+   anSave(r,start,end,'');status.textContent='Loaded.';
   }catch(e){if(valid()){panel.replaceChildren(node('h3',title),node('p','Could not load report: '+e.message));}}
  });await Promise.all(jobs);
 }
 
+function anDateShift(date,days){const d=new Date(date+'T00:00:00Z');d.setUTCDate(d.getUTCDate()+days);return d.toISOString().slice(0,10);}
+$('an-period').onchange=()=>{const p=$('an-period').value,t=pakistanToday(),m=t.slice(0,7)+'-01';if(p==='custom')return;let a=t,b=t;if(p==='yesterday')a=b=anDateShift(t,-1);if(p==='7'||p==='30')a=anDateShift(t,1-Number(p));if(p==='month')a=m;if(p==='year')a=t.slice(0,4)+'-01-01';if(p==='lastmonth'){b=anDateShift(m,-1);a=b.slice(0,7)+'-01';}$('an-start').value=a;$('an-end').value=b;anLoad();};
+function anDonut(r){const ns='http://www.w3.org/2000/svg',svg=document.createElementNS(ns,'svg');svg.setAttribute('viewBox','0 0 140 140');svg.setAttribute('role','img');svg.setAttribute('aria-label','Order status chart');let offset=0;const total=Number(r.total_orders),circ=2*Math.PI*52;for(const [v,c] of [[total,'#64748b'],[r.served_orders,'#22c55e'],[r.pending_orders,'#eab308'],[r.cancelled_orders,'#ef4444']]){const n=document.createElementNS(ns,'circle');for(const [k,val] of Object.entries({cx:70,cy:70,r:52,fill:'none',stroke:c,'stroke-width':18,'stroke-dasharray':(total?circ*Number(v)/total:circ)+' '+circ,'stroke-dashoffset':-offset,transform:'rotate(-90 70 70)'}))n.setAttribute(k,val);svg.append(n);offset+=total?circ*Number(v)/total:0;if(!total)break;}const label=document.createElementNS(ns,'text');label.setAttribute('x','70');label.setAttribute('y','76');label.setAttribute('text-anchor','middle');label.setAttribute('fill','currentColor');label.textContent=total;svg.append(label);const wrap=document.createElement('div');wrap.className='an-chart';wrap.append(svg);$('an-breakdown').prepend(wrap);}
+function anBars(panel,title,rows){const wrap=document.createElement('div');wrap.className='an-chart';const h=document.createElement('h3');h.textContent=title;wrap.append(h);const max=Math.max(1,...rows.map(x=>Number(x[1])||0));for(const [name,value] of rows.slice(0,20)){const l=document.createElement('div');l.textContent=name+' — '+value;const track=document.createElement('div');track.className='an-track';const fill=document.createElement('div');fill.className='an-fill';fill.style.width=Math.max(0,Math.min(100,100*Number(value)/max))+'%';track.append(fill);wrap.append(l,track);}if(rows.length>20){const note=document.createElement('p');note.textContent='Chart shows first 20 rows; full report is in the table.';wrap.append(note);}panel.append(wrap);}
+function anSave(r,start,end,id){anExport={r,start,end,id,tab:anTab};$('an-export').disabled=false;}
+function anCsvCell(v){let s=v==null?'':String(v);if(typeof v==='string'&&/^[\s\uFEFF]*[=+@-]|^[\t\r\n]/.test(s))s="'"+s;return '"'+s.replace(/"/g,'""')+'"';}
+$('an-export').onclick=()=>{if(!anExport)return;const {r,start,end,id,tab}=anExport;const rows=[['Report',tab],['Start',start],['End',end],['Restaurant',id?$('an-restaurant').selectedOptions[0].textContent:'All restaurants']];const scalars=Object.entries(r).filter(([k,v])=>v==null||['string','number','boolean'].includes(typeof v));rows.push([],['Metric','Value'],...scalars);for(const [key,items] of Object.entries(r)){if(!Array.isArray(items)||!items.length)continue;const keys=[...new Set(items.flatMap(x=>Object.keys(x)))].filter(k=>!['logo_url'].includes(k));rows.push([],[key],keys,...items.map(x=>keys.map(k=>typeof x[k]==='object'&&x[k]!=null?JSON.stringify(x[k]):x[k])));}const blob=new Blob(['\uFEFF'+rows.map(row=>row.map(anCsvCell).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'});const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=tab+'-'+start+'-'+end+'.csv';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);};
 $('an-refresh').onclick=anLoad;
-for(const id of ['an-start','an-end','an-restaurant'])$(id).addEventListener('change',()=>{anReset();$('an-status').textContent='Filters changed. Select Load report.';});
+for(const id of ['an-start','an-end','an-restaurant'])$(id).addEventListener('change',()=>{if(id!=='an-restaurant')$('an-period').value='custom';anReset();$('an-status').textContent='Filters changed. Select Load report.';});
 
 showView('dashboard');
 
