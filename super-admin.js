@@ -820,7 +820,7 @@ $('ks-create').onclick=()=>ksOpen('create');$('ks-cancel').onclick=ksClose;$('ks
 
 // Step 56.5.2: read-only analytics, using existing admin session.
 let anTicket=0;
-function anReset(){++anTicket;$('an-stats').replaceChildren();$('an-breakdown').replaceChildren();$('an-status').textContent='';$('an-refresh').disabled=false;}
+function anReset(){++anTicket;$('an-details').replaceChildren();$('an-stats').replaceChildren();$('an-breakdown').replaceChildren();$('an-status').textContent='';$('an-refresh').disabled=false;}
 async function anOpen(){
  anReset(); const ticket=anTicket, session=epoch;
  const today=pakistanToday(); $('an-start').value=today.slice(0,4)+'-01-01';$('an-end').value=today;
@@ -845,9 +845,39 @@ async function anLoad(){
  for(const [label,value] of [['Total orders',r.total_orders],['Served order value',money(r.served_value)],['Served orders',r.served_orders],['Pending orders',r.pending_orders],['Cancelled orders',r.cancelled_orders],['Average served order value',money(r.average_order_value)]]){const c=document.createElement('div');c.className='billing-stat';const l=document.createElement('small');l.textContent=label;const v=document.createElement('strong');v.textContent=value;c.append(l,v);$('an-stats').append(c);}
  for(const [label,value,color] of [['Served',r.served_orders,'#22c55e'],['Pending',r.pending_orders,'#eab308'],['Cancelled',r.cancelled_orders,'#ef4444']]){const l=document.createElement('div');l.textContent=label+' — '+value;const t=document.createElement('div');t.className='an-track';const f=document.createElement('div');f.className='an-fill';f.style.background=color;f.style.width=Math.min(100,Math.max(0,r.total_orders?100*value/r.total_orders:0))+'%';t.append(f);$('an-breakdown').append(l,t);}
  $('an-status').textContent='Report: '+start+' to '+end+(Number(r.total_orders)===0?' · No orders in this period.':'');
+ await anDetails(start,end,id,ticket,session);
  }catch(e){if(ticket===anTicket&&session===epoch){$('an-stats').replaceChildren();$('an-breakdown').replaceChildren();$('an-status').textContent='Could not load analytics: '+e.message;}}
  finally{if(ticket===anTicket&&session===epoch)$('an-refresh').disabled=false;}
 }
+
+// Step 56.5.3: independent read-only reports, scoped by the same filters.
+async function anDetails(start,end,id,ticket,session){
+ const root=$('an-details');
+ const valid=()=>ticket===anTicket&&session===epoch&&!$('dashboard').hidden;
+ const args={p_start_date:start,p_end_date:end,p_restaurant_id:id||null};
+ const money=(v,c='PKR')=>v==null?'—':formatMoney(v,c);
+ const text=v=>v==null?'—':String(v);
+ const specs=[['Daily performance','get_restaurant_daily_analytics',args],['Menu performance','get_restaurant_item_analytics',args],['Restaurant activity','get_restaurant_activity_analytics',args],['Restaurant comparison — all restaurants','get_restaurant_comparison_analytics',{p_start_date:start,p_end_date:end}]];
+ function node(tag,value){const n=document.createElement(tag);if(value!=null)n.textContent=value;return n;}
+ function table(panel,title,headers,rows){
+  if(!Array.isArray(rows))throw Error('Unexpected report rows: '+title);
+  panel.append(node('h3',title));const wrap=node('div');wrap.className='payment-table-wrap';wrap.style.maxHeight='420px';wrap.style.overflow='auto';
+  const t=node('table');t.className='billing-table';const head=node('thead'),hr=node('tr');for(const h of headers){const th=node('th',h);th.scope='col';hr.append(th);}head.append(hr);t.append(head);const body=node('tbody');
+  for(const row of rows){const tr=node('tr');for(const v of row)tr.append(node('td',text(v)));body.append(tr);}
+  if(!rows.length){const tr=node('tr'),td=node('td','No records in this period.');td.colSpan=headers.length;tr.append(td);body.append(tr);}t.append(body);wrap.append(t);panel.append(wrap);
+ }
+ const jobs=specs.map(async ([title,fn,params],i)=>{
+  const panel=node('div');panel.className='renew-panel';panel.append(node('h3',title));const status=node('p','Loading…');status.className='hint';panel.append(status);root.append(panel);
+  try{const {data:r,error}=await db.rpc(fn,params);if(!valid())return;if(error)throw error;if(!r||typeof r!=='object')throw Error('Unexpected report response');const c=r.currency||'PKR';const m=v=>money(v,c);const rows=(key,mapper)=>{if(!Array.isArray(r[key]))throw Error('Missing '+key);return r[key].map(mapper);};
+   if(i===0){table(panel,'Daily breakdown',['Date','Orders','Served','Pending','Cancelled','Served value','Average served value'],rows('daily',x=>[x.date??x.day??x.order_date,x.total_orders,x.served_orders,x.pending_orders,x.cancelled_orders,m(x.served_value??x.total_served_value),m(x.average_order_value)]));}
+   if(i===1){panel.append(node('p','Units sold: '+text(r.total_units_sold)+' · Item value: '+m(r.total_item_sales_value)+' · Skipped item records: '+text(r.skipped_item_records)));table(panel,'Popular dishes',['Restaurant','Dish','Units','Orders','Item value'],rows('popular_dishes',x=>[x.restaurant_name,x.title??x.item_title??x.dish_title??x.item_name,x.units_sold??x.total_units??x.quantity??x.units,x.order_count,m(x.item_sales_value??x.sales_value??x.total_sales_value??x.total_value)]));table(panel,'Size breakdown',['Restaurant','Dish','Size','Units','Item value'],rows('size_breakdown',x=>[x.restaurant_name,x.title??x.item_title??x.dish_title??x.item_name??x.item_id,x.size,x.units_sold??x.total_units??x.quantity??x.units,m(x.item_sales_value??x.sales_value??x.total_sales_value??x.total_value)]));}
+   if(i===2){const days=['','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];const hour=x=>x==null?'—':String(x).padStart(2,'0')+':00';table(panel,'Hourly breakdown (Pakistan time)',['Hour','Orders','Served','Pending','Cancelled','Served value'],rows('hourly_breakdown',x=>[hour(x.hour??x.order_hour),x.total_orders,x.served_orders,x.pending_orders,x.cancelled_orders,m(x.served_value??x.total_served_value)]));table(panel,'Weekday breakdown',['Day','Orders','Served','Served value'],rows('weekday_breakdown',x=>[x.weekday_name??x.day_name??days[x.weekday??x.day_of_week??x.order_weekday]??x.weekday,x.total_orders,x.served_orders,m(x.served_value??x.total_served_value)]));table(panel,'Table performance',['Restaurant','Table','Orders','Served','Pending','Cancelled','Served value'],rows('table_breakdown',x=>[x.restaurant_name,x.table_number??x.table,x.total_orders,x.served_orders,x.pending_orders,x.cancelled_orders,m(x.served_value??x.total_served_value)]));}
+   if(i===3){panel.append(node('p','Comparison always includes all restaurants for the selected dates, regardless of restaurant filter.'));table(panel,'Ranked by served value',['Restaurant','Orders','Served','Cancelled','Served value','Cancellation rate'],rows('restaurants',x=>[x.restaurant_name,x.total_orders,x.served_orders,x.cancelled_orders,m(x.served_value??x.total_served_value),Number(x.total_orders)>0&&x.cancellation_rate!=null?x.cancellation_rate+'%': '—']));}
+   status.textContent='Loaded.';
+  }catch(e){if(valid()){panel.replaceChildren(node('h3',title),node('p','Could not load report: '+e.message));}}
+ });await Promise.all(jobs);
+}
+
 $('an-refresh').onclick=anLoad;
 for(const id of ['an-start','an-end','an-restaurant'])$(id).addEventListener('change',()=>{anReset();$('an-status').textContent='Filters changed. Select Load report.';});
 
