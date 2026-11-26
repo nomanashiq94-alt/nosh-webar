@@ -810,6 +810,7 @@
           <button data-nav="subscriptions" type="button">Subscriptions</button>
           <button data-nav="payments" type="button">Payments</button>
           <button data-nav="kitchen" type="button">Kitchen management</button>
+          <button data-nav="owners" type="button">Owner management</button>
           <button data-nav="menu" type="button">Menu management</button>
         </nav>
         
@@ -835,6 +836,14 @@
 <p id="ks-status" role="status"></p>
 <form id="ks-form" class="renew-panel" hidden autocomplete="off"><h3 id="ks-title"></h3><label id="ks-restaurant-label">Restaurant<select id="ks-restaurant"></select></label><label id="ks-name-label">Staff name<input id="ks-name" maxlength="100"></label><label id="ks-user-label">Username<input id="ks-user" maxlength="30" pattern="[a-z0-9_]{3,30}"></label><label id="ks-password-label">Password (minimum 12 characters)<input id="ks-password" type="password" autocomplete="new-password" minlength="12"></label><button type="submit">Save</button><button id="ks-cancel" type="button">Cancel</button></form>
 <div class="payment-table-wrap"><table class="billing-table"><thead><tr><th>Restaurant</th><th>Staff name</th><th>Username</th><th>Status</th><th>Actions</th></tr></thead><tbody id="ks-rows"></tbody></table></div></section>
+
+      <section data-view="owners" id="owner-management">
+<h2>Owner accounts</h2><p class="hint">Manage read-only restaurant analytics access. The owner portal will be deployed in Step 56.9.</p>
+<div class="billing-grid" id="ow-stats"></div>
+<div class="row"><input id="ow-search" type="search" placeholder="Search owner or restaurant" aria-label="Search owner accounts"><select id="ow-filter" aria-label="Filter restaurant"></select><select id="ow-state" aria-label="Filter account status"><option value="">All statuses</option><option value="active">Active</option><option value="disabled">Disabled</option></select><button id="ow-refresh" type="button">Refresh</button><button id="ow-create" type="button">+ Create owner account</button><button id="ow-link" type="button">Copy planned portal link</button></div>
+<p id="ow-status" role="status"></p>
+<form id="ow-form" class="renew-panel" hidden autocomplete="off"><h3 id="ow-title"></h3><label id="ow-restaurant-label">Restaurant<select id="ow-restaurant"></select></label><label id="ow-name-label">Owner name<input id="ow-name" maxlength="100"></label><label id="ow-user-label">Username<input id="ow-user" maxlength="30" pattern="[a-z0-9_]{3,30}"></label><label id="ow-password-label">Password (minimum 12 characters)<input id="ow-password" type="password" autocomplete="new-password" minlength="12"><button id="ow-reveal" type="button" aria-pressed="false">Show password</button></label><button type="submit">Save</button><button id="ow-cancel" type="button">Cancel</button></form>
+<div class="payment-table-wrap"><table class="billing-table"><thead><tr><th>Restaurant</th><th>Owner name</th><th>Username</th><th>Status</th><th>Actions</th></tr></thead><tbody id="ow-rows"></tbody></table></div></section>
 
       <section class="selector-panel" data-view="menu">
         <h2>Select restaurant</h2>

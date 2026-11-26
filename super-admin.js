@@ -726,6 +726,7 @@ $('settings-form').addEventListener('submit',async e=>{
 async function checkSession() {
   anReset();
   ksReset();
+  owReset();
   resetSettings();
   ++brandingRequest;
   const seq = ++epoch;
@@ -767,13 +768,14 @@ $('create-form').addEventListener('submit', async e => {
   finally { button.disabled = false; }
 });
 
-const viewTitles={dashboard:'Overview',restaurants:'Restaurants',settings:'Restaurant settings',branding:'Themes & branding',subscriptions:'Subscriptions',payments:'Payments',menu:'Menu management',kitchen:'Kitchen management',analytics:'Analytics'};
+const viewTitles={dashboard:'Overview',restaurants:'Restaurants',settings:'Restaurant settings',branding:'Themes & branding',subscriptions:'Subscriptions',payments:'Payments',menu:'Menu management',kitchen:'Kitchen management',owners:'Owner management',analytics:'Analytics'};
 function showView(view){
  if(!Object.hasOwn(viewTitles,view))view='dashboard';
  document.querySelectorAll('[data-view]').forEach(n=>n.classList.toggle('view-hidden',n.dataset.view!==view));
  document.querySelectorAll('[data-nav]').forEach(n=>{if(n.dataset.nav===view)n.setAttribute('aria-current','page');else n.removeAttribute('aria-current');});
  $('view-title').textContent=viewTitles[view];
  if(view==='kitchen')ksLoad();else ksClose();
+ if(view==='owners')owLoad();else owClose();
  if(view==='analytics')anOpen();else anReset();
 }
 function renderPickers(restaurants){
@@ -816,6 +818,34 @@ function ksOpen(mode,s=null){if(ksBusy)return;ksClose();ksMode=mode;ksTarget=s;c
 async function ksMutate(body){if(ksBusy||$('dashboard').hidden)return;const session=epoch;ksLock(true);$('ks-status').textContent='Saving…';let saved=false;try{const result=await ksCall(body);if(session!==epoch)return;saved=true;ksClose();$('ks-status').textContent=result.message;}catch(e){if(session===epoch)$('ks-status').textContent='Request not confirmed: '+e.message+' — refresh before retrying.';}finally{$('ks-password').value='';ksLock(false);}if(saved&&session===epoch){await ksLoad();if(session===epoch)$('ks-status').textContent='Saved. '+$('ks-status').textContent;}}
 $('ks-form').onsubmit=e=>{e.preventDefault();if(!ksMode||ksBusy)return;const body={action:ksMode};if(ksTarget)body.user_id=ksTarget.user_id;if(ksMode==='create'){body.restaurant_id=$('ks-restaurant').value;body.username=$('ks-user').value.trim().toLowerCase();}if(ksMode!=='reset_password')body.display_name=$('ks-name').value.trim();if(ksMode!=='update_profile'){body.password=$('ks-password').value;if(body.password.length<12||new TextEncoder().encode(body.password).length>72){$('ks-status').textContent='Password must be 12 characters minimum and 72 bytes maximum.';return;}}ksMutate(body);};
 $('ks-create').onclick=()=>ksOpen('create');$('ks-cancel').onclick=ksClose;$('ks-refresh').onclick=()=>{ksClose();ksLoad();};$('ks-search').oninput=ksRender;$('ks-filter').onchange=ksRender;$('ks-link').onclick=async()=>{const url=new URL('kitchen.html',location.href).href;try{await navigator.clipboard.writeText(url);$('ks-status').textContent='Shared kitchen login link copied.';}catch{$('ks-status').textContent=url;}};
+
+
+// Owner management — separate Edge Function.
+let owStaff=[], owRestaurants=[], owMode='', owTarget=null, owBusy=false, owTicket=0;
+function owClose(){ $('ow-form').reset(); $('ow-password').type='password'; $('ow-reveal').textContent='Show password'; $('ow-reveal').setAttribute('aria-pressed','false'); $('ow-form').hidden=true; owMode=''; owTarget=null; }
+function owReset(){ ++owTicket; $('ow-search').value=''; $('ow-state').value=''; $('ow-filter').replaceChildren(); owClose(); owStaff=[]; owRestaurants=[]; $('ow-rows').replaceChildren(); $('ow-stats').replaceChildren(); $('ow-status').textContent=''; }
+async function owCall(body){
+ const {data,error}=await db.functions.invoke('manage-restaurant-owners',{body});
+ if(error){let detail;try{detail=await error.context.json();}catch{} throw Error(detail?.error||error.message);}
+ if(!data?.ok)throw Error(data?.error||'Request not confirmed');return data;
+}
+function owLock(value){owBusy=value;for(const el of $('owner-management').querySelectorAll('button,input,select'))el.disabled=value;}
+function owOption(value,label){const o=document.createElement('option');o.value=value;o.textContent=label;return o;}
+function owRender(){
+ const stats=$('ow-stats');stats.replaceChildren();
+ for(const [label,value] of [['Total accounts',owStaff.length],['Active',owStaff.filter(s=>s.is_active).length],['Disabled',owStaff.filter(s=>!s.is_active).length]]){const c=document.createElement('div');c.className='billing-stat';const l=document.createElement('small');l.textContent=label;const v=document.createElement('strong');v.textContent=value;c.append(l,v);stats.append(c);}
+ const rows=$('ow-rows');rows.replaceChildren();const q=$('ow-search').value.trim().toLowerCase(), f=$('ow-filter').value;
+ for(const s of owStaff){const r=owRestaurants.find(r=>r.id===s.restaurant_id);const name=r?.name||'Unassigned / unknown';if(f&&f!==s.restaurant_id)continue;const state=$('ow-state').value;if(state&&state!==(s.is_active?'active':'disabled'))continue;if(![name,s.username,s.display_name].join(' ').toLowerCase().includes(q))continue;
+ const tr=document.createElement('tr');for(const v of [name,s.display_name||'Not configured',s.username||'Unknown username']){const td=document.createElement('td');td.textContent=v;tr.append(td);}const td=document.createElement('td');const badge=document.createElement('span');badge.className='status-pill '+(s.is_active?'status-active':'status-suspended');badge.textContent=s.is_active?'Active':'Disabled';td.append(badge);tr.append(td);const actions=document.createElement('td');
+ for(const [label,fn] of [['Edit',()=>owOpen('update_profile',s)],['Reset password',()=>owOpen('reset_password',s)],[s.is_active?'Disable':'Enable',()=>{if(confirm((s.is_active?'Disable':'Enable')+' account for '+name+'?'))owMutate({action:'set_active',user_id:s.user_id,is_active:!s.is_active});}]]){const b=document.createElement('button');b.type='button';b.textContent=label;b.disabled=owBusy;b.onclick=fn;actions.append(b);}tr.append(actions);rows.append(tr);}
+ if(!rows.children.length){const tr=document.createElement('tr');const td=document.createElement('td');td.colSpan=5;td.textContent='No matching accounts.';tr.append(td);rows.append(tr);}
+}
+async function owLoad(){if(owBusy||$('dashboard').hidden||$('owner-management').classList.contains('view-hidden'))return;const ticket=++owTicket, session=epoch;owLock(true);$('ow-status').textContent='Loading accounts…';try{const [result,restaurants]=await Promise.all([owCall({action:'list'}),db.from('restaurants').select('id,name,status').order('name')]);if(ticket!==owTicket||session!==epoch)return;if(restaurants.error)throw restaurants.error;owStaff=result.owners||[];owRestaurants=restaurants.data||[];const f=$('ow-filter'), old=f.value;f.replaceChildren(owOption('','All restaurants'),...owRestaurants.map(r=>owOption(r.id,r.name)));if([...f.options].some(o=>o.value===old))f.value=old;owRender();$('ow-status').textContent='Accounts loaded.';}catch(e){if(ticket===owTicket){owStaff=[];owRestaurants=[];owRender();$('ow-status').textContent='Could not load accounts: '+e.message;}}finally{owLock(false);}}
+function owOpen(mode,s=null){if(owBusy)return;owClose();owMode=mode;owTarget=s;const create=mode==='create', edit=mode==='update_profile';$('ow-title').textContent=create?'Create owner account':(edit?'Edit owner name':'Reset password')+' — '+(s.username||s.display_name||'Owner account');for(const [key,visible] of [['restaurant',create],['user',create],['name',create||edit],['password',!edit]]){$('ow-'+key+'-label').hidden=!visible;$('ow-'+key).required=visible;}$('ow-restaurant').replaceChildren(owOption('','Select restaurant'),...owRestaurants.filter(r=>r.status==='active').map(r=>owOption(r.id,r.name)));$('ow-name').value=s?.display_name||'';$('ow-form').hidden=false;$('ow-form').scrollIntoView({behavior:'smooth',block:'nearest'});}
+async function owMutate(body){if(owBusy||$('dashboard').hidden)return;const session=epoch;owLock(true);$('ow-status').textContent='Saving…';let saved=false;try{const result=await owCall(body);if(session!==epoch)return;saved=true;owClose();$('ow-status').textContent=result.message;}catch(e){if(session===epoch)$('ow-status').textContent='Request not confirmed: '+e.message+' — refresh before retrying.';}finally{$('ow-password').value='';owLock(false);}if(saved&&session===epoch){await owLoad();if(session===epoch)$('ow-status').textContent='Saved. '+$('ow-status').textContent;}}
+$('ow-form').onsubmit=e=>{e.preventDefault();if(!owMode||owBusy)return;const body={action:owMode};if(owTarget)body.user_id=owTarget.user_id;if(owMode==='create'){body.restaurant_id=$('ow-restaurant').value;body.username=$('ow-user').value.trim().toLowerCase();}if(owMode!=='reset_password')body.display_name=$('ow-name').value.trim();if(owMode!=='update_profile'){body.password=$('ow-password').value;if(body.password.length<12||new TextEncoder().encode(body.password).length>72){$('ow-status').textContent='Password must be 12 characters minimum and 72 bytes maximum.';return;}}owMutate(body);};
+$('ow-create').onclick=()=>owOpen('create');$('ow-cancel').onclick=owClose;$('ow-refresh').onclick=()=>{owClose();owLoad();};$('ow-search').oninput=owRender;$('ow-filter').onchange=owRender;$('ow-state').onchange=owRender;$('ow-reveal').onclick=()=>{const p=$('ow-password'),show=p.type==='password';p.type=show?'text':'password';$('ow-reveal').textContent=show?'Hide password':'Show password';$('ow-reveal').setAttribute('aria-pressed',String(show));};$('ow-link').onclick=async()=>{const url=new URL('owner.html',location.href).href;try{await navigator.clipboard.writeText(url);$('ow-status').textContent='Planned owner portal link copied (not deployed yet).';}catch{$('ow-status').textContent=url;}};
+
 
 
 // Step 56.5.2: read-only analytics, using existing admin session.
