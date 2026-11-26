@@ -857,7 +857,7 @@ async function anDetails(start,end,id,ticket,session){
  const args={p_start_date:start,p_end_date:end,p_restaurant_id:id||null};
  const money=(v,c='PKR')=>v==null?'—':formatMoney(v,c);
  const text=v=>v==null?'—':String(v);
- const specs=[['Daily performance','get_restaurant_daily_analytics',args],['Menu performance','get_restaurant_item_analytics',args],['Restaurant activity','get_restaurant_activity_analytics',args],['Restaurant comparison — all restaurants','get_restaurant_comparison_analytics',{p_start_date:start,p_end_date:end}]];
+ const specs=[['Daily performance','get_restaurant_daily_analytics',args],['Menu performance','get_restaurant_item_analytics',args],['Restaurant activity','get_restaurant_activity_analytics',args],['Restaurant comparison — all restaurants','get_restaurant_comparison_analytics',{p_start_date:start,p_end_date:end}],['SaaS subscription income — all restaurants','get_saas_subscription_analytics',{p_start_date:start,p_end_date:end}]];
  function node(tag,value){const n=document.createElement(tag);if(value!=null)n.textContent=value;return n;}
  function table(panel,title,headers,rows){
   if(!Array.isArray(rows))throw Error('Unexpected report rows: '+title);
@@ -873,6 +873,24 @@ async function anDetails(start,end,id,ticket,session){
    if(i===1){panel.append(node('p','Units sold: '+text(r.total_units_sold)+' · Item value: '+m(r.total_item_sales_value)+' · Skipped item records: '+text(r.skipped_item_records)));table(panel,'Popular dishes',['Restaurant','Dish','Units','Orders','Item value'],rows('popular_dishes',x=>[x.restaurant_name,x.title??x.item_title??x.dish_title??x.item_name,x.units_sold??x.total_units??x.quantity??x.units,x.order_count,m(x.item_sales_value??x.sales_value??x.total_sales_value??x.total_value)]));table(panel,'Size breakdown',['Restaurant','Dish','Size','Units','Item value'],rows('size_breakdown',x=>[x.restaurant_name,x.title??x.item_title??x.dish_title??x.item_name??x.item_id,x.size,x.units_sold??x.total_units??x.quantity??x.units,m(x.item_sales_value??x.sales_value??x.total_sales_value??x.total_value)]));}
    if(i===2){const days=['','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];const hour=x=>x==null?'—':String(x).padStart(2,'0')+':00';table(panel,'Hourly breakdown (Pakistan time)',['Hour','Orders','Served','Pending','Cancelled','Served value'],rows('hourly_breakdown',x=>[hour(x.hour??x.order_hour),x.total_orders,x.served_orders,x.pending_orders,x.cancelled_orders,m(x.served_value??x.total_served_value)]));table(panel,'Weekday breakdown',['Day','Orders','Served','Served value'],rows('weekday_breakdown',x=>[x.weekday_name??x.day_name??days[x.weekday??x.day_of_week??x.order_weekday]??x.weekday,x.total_orders,x.served_orders,m(x.served_value??x.total_served_value)]));table(panel,'Table performance',['Restaurant','Table','Orders','Served','Pending','Cancelled','Served value'],rows('table_breakdown',x=>[x.restaurant_name,x.table_number??x.table,x.total_orders,x.served_orders,x.pending_orders,x.cancelled_orders,m(x.served_value??x.total_served_value)]));}
    if(i===3){panel.append(node('p','Comparison always includes all restaurants for the selected dates, regardless of restaurant filter.'));table(panel,'Ranked by served value',['Restaurant','Orders','Served','Cancelled','Served value','Cancellation rate'],rows('restaurants',x=>[x.restaurant_name,x.total_orders,x.served_orders,x.cancelled_orders,m(x.served_value??x.total_served_value),Number(x.total_orders)>0&&x.cancellation_rate!=null?x.cancellation_rate+'%': '—']));}
+   if(i===4){
+    panel.append(node('p','Recorded payments for '+start+' to '+end+' · All restaurants, independent of restaurant filter. Not restaurant food sales or net profit.'));
+    panel.append(node('p','Subscription fees and statuses are current as of '+text(r.subscription_snapshot_date)+', not historical income. Currencies are never added together.'));
+    const cash=(v,c)=>v==null||!c?'—':money(v,c);
+    const grid=node('div');grid.className='billing-grid';
+    const stat=(label,value)=>{const card=node('div');card.className='billing-stat';card.append(node('small',label),node('strong',text(value)));grid.append(card);};
+    stat('Payments recorded',r.total_payment_count);stat('Paying restaurants',r.paying_restaurants);stat('Configured subscriptions',text(r.configured_subscriptions)+' / '+text(r.total_restaurants));
+    for(const x of rows('payment_totals',x=>x))stat('Recorded income ('+x.currency+')',cash(x.recorded_income,x.currency));
+    if(!r.payment_totals.length)stat('Recorded income','No payments in period');
+    for(const x of rows('monthly_fee_summary',x=>x)){stat('Configured monthly fees ('+x.currency+')',cash(x.configured_monthly_fees,x.currency));stat('Active monthly fees ('+x.currency+')',cash(x.active_monthly_fees,x.currency));}
+    panel.append(grid);
+    panel.append(node('p','Active monthly fees include active restaurants with active or expiring-soon subscriptions only.'));
+    table(panel,'Monthly payments',['Month','Currency','Payments','Recorded income'],rows('monthly_payments',x=>[x.month,x.currency,x.payment_count,cash(x.recorded_income,x.currency)]));
+    table(panel,'Restaurant income',['Restaurant','Currency','Payments','Recorded income'],rows('restaurant_income',x=>[x.restaurant_name,x.currency,x.payment_count,cash(x.recorded_income,x.currency)]));
+    table(panel,'Payment methods',['Method','Currency','Payments','Recorded income'],rows('payment_methods',x=>[paymentMethods[x.payment_method]||x.payment_method,x.currency,x.payment_count,cash(x.recorded_income,x.currency)]));
+    table(panel,'Subscription status snapshot',['Status','Restaurants'],rows('subscription_status_breakdown',x=>[x.subscription_status==='expired'?'Expired':subscriptionStatusLabels[x.subscription_status]||x.subscription_status,x.restaurant_count]));
+    table(panel,'Current subscriptions',['Restaurant','Plan','Monthly fee','Status','Expiry','Grace days','Access mode'],rows('subscriptions',x=>[x.restaurant_name,x.plan_name,cash(x.monthly_fee,x.currency),x.subscription_status==='expired'?'Expired':subscriptionStatusLabels[x.subscription_status]||x.subscription_status,x.expires_on,x.grace_period_days,x.access_mode]));
+   }
    status.textContent='Loaded.';
   }catch(e){if(valid()){panel.replaceChildren(node('h3',title),node('p','Could not load report: '+e.message));}}
  });await Promise.all(jobs);
