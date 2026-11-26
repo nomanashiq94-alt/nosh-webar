@@ -781,6 +781,7 @@
 .theme-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:8px}.theme-grid button{background:var(--bg);color:var(--ink);border:1px solid var(--line-strong);margin:0;text-align:left}.theme-swatches{display:flex;gap:3px;margin-bottom:6px}.theme-swatches span{height:20px;flex:1;border-radius:3px}.theme-layout{display:grid;grid-template-columns:1fr 1fr;gap:24px}.theme-control{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.theme-control label{min-width:100px;margin:0}.theme-control input[type=text]{width:100px}.theme-control input[type=color]{width:45px}.theme-control button{font-size:11px;padding:6px}.theme-control input[aria-invalid=true]{outline:2px solid #ef4444}#theme-preview{padding:12px;border-radius:16px;max-width:380px;overflow:hidden}#theme-header{padding:20px;text-align:center;border-radius:12px;display:grid;gap:6px}#theme-header small{color:inherit}#theme-logo{max-width:80px;max-height:60px;margin:auto}.theme-demo-card{padding:14px;margin:10px 0;border-radius:12px}.theme-demo-action{padding:10px;text-align:center;border-radius:8px;margin-top:8px;font-weight:600}@media(max-width:850px){.theme-layout{grid-template-columns:1fr}}
 
 #an-breakdown .an-track{height:10px;background:var(--line-strong);border-radius:8px;overflow:hidden;margin:6px 0 16px}#an-breakdown .an-fill{height:100%;border-radius:8px}#an-stats strong{overflow-wrap:anywhere}#analytics-section label{margin:0}#analytics-section .row{align-items:end}
+.an-tabs button[aria-pressed="false"]{background:var(--bg);color:var(--ink);border:1px solid var(--line-strong)}
 </style>
 </head>
 <body>
@@ -822,10 +823,10 @@
       </header>
 
       <section data-view="analytics" id="analytics-section" class="view-hidden">
-<h2>Analytics overview</h2><p class="hint">Order creation dates · Asia/Karachi · Includes archived orders. Served value is not verified payment income.</p>
-<div class="row"><label>Restaurant <select id="an-restaurant"><option value="">All restaurants</option></select></label><label>From <input id="an-start" type="date"></label><label>To <input id="an-end" type="date"></label><button id="an-refresh" type="button">Load report</button></div>
-<p id="an-status" role="status" aria-live="polite"></p><div id="an-stats" class="billing-grid"></div>
-<h3>Order status breakdown</h3><div id="an-breakdown"></div><div id="an-details"></div>
+<h2>Analytics</h2><div class="row an-tabs" role="group" aria-label="Analytics sections"><button type="button" data-an-tab="overview" aria-pressed="true">Overview</button><button type="button" data-an-tab="restaurants" aria-pressed="false">Restaurants</button><button type="button" data-an-tab="income" aria-pressed="false">SaaS Income</button></div><p class="hint">Order creation dates · Asia/Karachi · Includes archived orders. Served value is not verified payment income.</p>
+<div class="row"><label id="an-restaurant-label">Restaurant <select id="an-restaurant"><option value="">All restaurants</option></select></label><label>From <input id="an-start" type="date"></label><label>To <input id="an-end" type="date"></label><button id="an-refresh" type="button">Load report</button></div>
+<p id="an-status" role="status" aria-live="polite"></p><div id="an-overview"><div id="an-stats" class="billing-grid"></div>
+<h3>Order status breakdown</h3><div id="an-breakdown"></div></div><div id="an-details" hidden></div>
 </section>
       <section data-view="kitchen" id="kitchen-management">
 <h2>Kitchen accounts</h2><p class="hint">Manage staff access for each restaurant. Disabled accounts cannot access orders. Disabled staff sessions are checked by the kitchen interface.</p>
