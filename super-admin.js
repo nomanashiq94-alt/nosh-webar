@@ -724,6 +724,7 @@ $('settings-form').addEventListener('submit',async e=>{
 });
 
 async function checkSession() {
+  anReset();
   ksReset();
   resetSettings();
   ++brandingRequest;
@@ -766,13 +767,14 @@ $('create-form').addEventListener('submit', async e => {
   finally { button.disabled = false; }
 });
 
-const viewTitles={dashboard:'Overview',restaurants:'Restaurants',settings:'Restaurant settings',branding:'Themes & branding',subscriptions:'Subscriptions',payments:'Payments',menu:'Menu management',kitchen:'Kitchen management'};
+const viewTitles={dashboard:'Overview',restaurants:'Restaurants',settings:'Restaurant settings',branding:'Themes & branding',subscriptions:'Subscriptions',payments:'Payments',menu:'Menu management',kitchen:'Kitchen management',analytics:'Analytics'};
 function showView(view){
  if(!Object.hasOwn(viewTitles,view))view='dashboard';
  document.querySelectorAll('[data-view]').forEach(n=>n.classList.toggle('view-hidden',n.dataset.view!==view));
  document.querySelectorAll('[data-nav]').forEach(n=>{if(n.dataset.nav===view)n.setAttribute('aria-current','page');else n.removeAttribute('aria-current');});
  $('view-title').textContent=viewTitles[view];
  if(view==='kitchen')ksLoad();else ksClose();
+ if(view==='analytics')anOpen();else anReset();
 }
 function renderPickers(restaurants){
  document.querySelectorAll('[data-picker]').forEach(panel=>{
@@ -814,6 +816,40 @@ function ksOpen(mode,s=null){if(ksBusy)return;ksClose();ksMode=mode;ksTarget=s;c
 async function ksMutate(body){if(ksBusy||$('dashboard').hidden)return;const session=epoch;ksLock(true);$('ks-status').textContent='Saving…';let saved=false;try{const result=await ksCall(body);if(session!==epoch)return;saved=true;ksClose();$('ks-status').textContent=result.message;}catch(e){if(session===epoch)$('ks-status').textContent='Request not confirmed: '+e.message+' — refresh before retrying.';}finally{$('ks-password').value='';ksLock(false);}if(saved&&session===epoch){await ksLoad();if(session===epoch)$('ks-status').textContent='Saved. '+$('ks-status').textContent;}}
 $('ks-form').onsubmit=e=>{e.preventDefault();if(!ksMode||ksBusy)return;const body={action:ksMode};if(ksTarget)body.user_id=ksTarget.user_id;if(ksMode==='create'){body.restaurant_id=$('ks-restaurant').value;body.username=$('ks-user').value.trim().toLowerCase();}if(ksMode!=='reset_password')body.display_name=$('ks-name').value.trim();if(ksMode!=='update_profile'){body.password=$('ks-password').value;if(body.password.length<12||new TextEncoder().encode(body.password).length>72){$('ks-status').textContent='Password must be 12 characters minimum and 72 bytes maximum.';return;}}ksMutate(body);};
 $('ks-create').onclick=()=>ksOpen('create');$('ks-cancel').onclick=ksClose;$('ks-refresh').onclick=()=>{ksClose();ksLoad();};$('ks-search').oninput=ksRender;$('ks-filter').onchange=ksRender;$('ks-link').onclick=async()=>{const url=new URL('kitchen.html',location.href).href;try{await navigator.clipboard.writeText(url);$('ks-status').textContent='Shared kitchen login link copied.';}catch{$('ks-status').textContent=url;}};
+
+
+// Step 56.5.2: read-only analytics, using existing admin session.
+let anTicket=0;
+function anReset(){++anTicket;$('an-stats').replaceChildren();$('an-breakdown').replaceChildren();$('an-status').textContent='';$('an-refresh').disabled=false;}
+async function anOpen(){
+ anReset(); const ticket=anTicket, session=epoch;
+ const today=pakistanToday(); $('an-start').value=today.slice(0,4)+'-01-01';$('an-end').value=today;
+ $('an-restaurant').replaceChildren(new Option('All restaurants',''));
+ $('an-refresh').disabled=true; $('an-status').textContent='Loading restaurants…';
+ try{const {data,error}=await db.from('restaurants').select('id,name').order('name');
+ if(ticket!==anTicket||session!==epoch)return;if(error)throw error;
+ for(const r of data||[])$('an-restaurant').append(new Option(r.name,r.id));
+ await anLoad();
+ }catch(e){if(ticket===anTicket&&session===epoch){$('an-status').textContent='Could not load restaurants: '+e.message;$('an-refresh').disabled=false;}}
+}
+async function anLoad(){
+ if($('dashboard').hidden)return;anReset();const ticket=anTicket,session=epoch;
+ const start=$('an-start').value,end=$('an-end').value,id=$('an-restaurant').value;
+ if(!start||!end||start>end||daysBetween(start,end)>365){$('an-status').textContent='Choose a valid date range of up to 366 days.';return;}
+ $('an-refresh').disabled=true;$('an-status').textContent='Loading analytics…';
+ try{const {data:r,error}=await db.rpc('get_restaurant_analytics',{p_start_date:start,p_end_date:end,p_restaurant_id:id||null});
+ if(ticket!==anTicket||session!==epoch||$('dashboard').hidden)return;if(error)throw error;
+ if(r && typeof r==='object' && r.served_value==null)r.served_value=r.total_served_value;
+ if(!r||typeof r!=='object'||!['total_orders','served_orders','pending_orders','cancelled_orders','served_value','average_order_value'].every(k=>r[k]!=null&&Number.isFinite(Number(r[k]))))throw Error('Unexpected analytics response.');
+ const money=v=>formatMoney(v,r.currency||'PKR');
+ for(const [label,value] of [['Total orders',r.total_orders],['Served order value',money(r.served_value)],['Served orders',r.served_orders],['Pending orders',r.pending_orders],['Cancelled orders',r.cancelled_orders],['Average served order value',money(r.average_order_value)]]){const c=document.createElement('div');c.className='billing-stat';const l=document.createElement('small');l.textContent=label;const v=document.createElement('strong');v.textContent=value;c.append(l,v);$('an-stats').append(c);}
+ for(const [label,value,color] of [['Served',r.served_orders,'#22c55e'],['Pending',r.pending_orders,'#eab308'],['Cancelled',r.cancelled_orders,'#ef4444']]){const l=document.createElement('div');l.textContent=label+' — '+value;const t=document.createElement('div');t.className='an-track';const f=document.createElement('div');f.className='an-fill';f.style.background=color;f.style.width=Math.min(100,Math.max(0,r.total_orders?100*value/r.total_orders:0))+'%';t.append(f);$('an-breakdown').append(l,t);}
+ $('an-status').textContent='Report: '+start+' to '+end+(Number(r.total_orders)===0?' · No orders in this period.':'');
+ }catch(e){if(ticket===anTicket&&session===epoch){$('an-stats').replaceChildren();$('an-breakdown').replaceChildren();$('an-status').textContent='Could not load analytics: '+e.message;}}
+ finally{if(ticket===anTicket&&session===epoch)$('an-refresh').disabled=false;}
+}
+$('an-refresh').onclick=anLoad;
+for(const id of ['an-start','an-end','an-restaurant'])$(id).addEventListener('change',()=>{anReset();$('an-status').textContent='Filters changed. Select Load report.';});
 
 showView('dashboard');
 
