@@ -17,7 +17,7 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
   <!-- Google Model Viewer Script for WebAR -->
-  <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
+  <link rel="dns-prefetch" href="https://ajax.googleapis.com">
 
   <style>
     body {
@@ -617,7 +617,7 @@
         return `
         <div data-dish-card class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden hover:border-slate-700 transition flex flex-col gap-3 p-3 sm:flex-row sm:gap-4">
           <div class="relative h-44 w-full shrink-0 overflow-hidden rounded-xl bg-slate-800 sm:h-auto sm:w-2/5 sm:aspect-square sm:self-center">
-            <img src="${esc(mediaUrl(item,'image'))}" alt="${esc(item.title)}" class="absolute inset-0 w-full h-full object-cover object-center" loading="lazy" />
+            <img src="${esc(mediaUrl(item,'image'))}" alt="${esc(item.title)}" class="absolute inset-0 w-full h-full object-cover object-center" loading="lazy" decoding="async" />
           </div>
           <div class="flex min-w-0 flex-1 flex-col justify-between gap-3 px-1 pb-1 sm:py-1">
             <div>
@@ -744,6 +744,12 @@
     // Modal Control Logic
     let arLoad = null;
     let arCloseTimer;
+    let arEnginePromise;
+    function ensureArEngine() {
+      if (customElements.get("model-viewer")) return Promise.resolve();
+      if (!arEnginePromise) arEnginePromise = import("https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js").then(() => customElements.whenDefined("model-viewer")).catch(error => { arEnginePromise = null; throw error; });
+      return arEnginePromise;
+    }
 
     function openArModal(itemId) {
       const item = resolveSize(menuItems.find(i => i.id === itemId), selectedSizes.get(itemId));
@@ -782,6 +788,13 @@
       arLoad = new AbortController();
       const status = document.getElementById('ar-size-status');
       status.textContent = model ? 'Loading 3D preview…' : '3D preview unavailable for this dish.';
+      const currentLoad = arLoad;
+      modal.classList.remove('hidden');
+      setTimeout(() => { if (!currentLoad.signal.aborted) modal.classList.remove('opacity-0'); }, 10);
+      if (!model) { viewer.removeAttribute('src'); viewer.querySelector('[slot="ar-button"]').style.display='none'; return; }
+      viewer.querySelector('[slot="ar-button"]').style.display='none';
+      ensureArEngine().then(() => {
+      if (currentLoad.signal.aborted) return;
       viewer.scale = '1 1 1';
       const listener = {once:true, signal:arLoad.signal};
       const onLoad = () => calibrateViewer(viewer,item,status);
@@ -807,9 +820,9 @@
       // Check actual physical dimensions on the target device; Scene Viewer/Quick Look may differ.
       const arBtn = viewer.querySelector('[slot="ar-button"]');
       arBtn.style.display = model && !directAR ? 'flex' : 'none';
-      if (!model) showToast('Add a real food GLB model in Admin to enable AR');
-      modal.classList.remove('hidden');
-      setTimeout(() => modal.classList.remove('opacity-0'), 10);
+      }).catch(() => {
+        if (!currentLoad.signal.aborted) status.textContent = directAR ? '3D preview unavailable. You can still use View on Table.' : '3D engine could not load. Check your connection and reopen the dish.';
+      });
     }
 
     // Model Viewer dimensions are in metres. Apply uniform scaling to target physical size.
