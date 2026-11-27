@@ -151,19 +151,7 @@ async function refreshRestaurants() {
     const copy = document.createElement('button'); copy.type='button'; copy.textContent='Copy menu link'; copy.onclick=async()=>{const url=new URL('./',location.href);url.searchParams.set('restaurant',r.slug);try{await navigator.clipboard.writeText(url.href);message('Menu link copied.');}catch{message(url.href);}};
     const security=document.createElement('button');security.type='button';security.textContent='Order security';security.onclick=()=>openOrderSecurity(r);
     const openMenu=document.createElement('a');openMenu.className='restaurant-edit';openMenu.textContent='Open menu';const menuUrl=new URL('./',location.href);menuUrl.searchParams.set('restaurant',r.slug);openMenu.href=menuUrl.href;openMenu.target='_blank';openMenu.rel='noopener noreferrer';
-    const links=document.createElement('button');links.type='button';links.className='restaurant-edit';links.textContent='Download QR links';links.onclick=async()=>{
-      try{
-        const {data,error}=await db.from('restaurants').select('table_count').eq('id',r.id).single();
-        if(error)throw error;
-        const count=Number(data.table_count);if(!Number.isInteger(count)||count<1||count>500)throw Error('Invalid table count');
-        const rows=['Table,Menu URL','All tables,'+menuUrl.href];
-        for(let i=1;i<=count;i++){const url=new URL(menuUrl);url.searchParams.set('table',String(i));rows.push(i+','+url.href);}
-        const objectUrl=URL.createObjectURL(new Blob([rows.join('\r\n')],{type:'text/csv;charset=utf-8'}));
-        const a=document.createElement('a');a.href=objectUrl;a.download='qr-links-'+r.slug.replace(/[^a-z0-9-]/gi,'-')+'.csv';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(objectUrl),1000);
-        message('QR destination links downloaded. Generate QR images from these URLs.');
-      }catch(e){message('Could not export QR links: '+e.message);}
-    };
-    li.append(strong, small, edit, manage, subscription, payments, settings, security, copy, openMenu, links); list.append(li);
+    li.append(strong, small, edit, manage, subscription, payments, settings, security, copy, openMenu); list.append(li);
   }
   filterRestaurants();
   await refreshBillingOverview(data || []);
