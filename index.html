@@ -926,7 +926,9 @@
       const order=pendingOrder;
       if(checkoutSecure===null){try{await refreshCheckoutMode();void prepareVerification();}catch(err){alert(err.message);}return;}
       const tablePin=document.getElementById("table-pin").value.trim();
-      if(checkoutPinRequired&&!/^[0-9]{4}$/.test(tablePin))return alert("Please enter the 4-digit table PIN.");
+      const sessionKey="nosh-table-proof:"+window.NOSH_ACTIVE_RESTAURANT?.id+":"+order.table+":"+deviceId();
+      let sessionProof=null;try{sessionProof=sessionStorage.getItem(sessionKey);}catch{}
+      if(checkoutPinRequired&&!sessionProof&&!/^[0-9]{4}$/.test(tablePin))return alert("Please enter the 4-digit table PIN.");
       if(securePilot()&&!tsToken){if(tsWidget===null)void prepareVerification();else try{window.turnstile.reset(tsWidget);}catch{} return alert('Please complete security verification, then place your order.');}
       placingOrder=true;
       const button=e.target.querySelector('button[type="submit"]');
@@ -953,9 +955,10 @@ const args={
 let receipt,error;
 if(securePilot()){
   const token=tsToken;tsToken='';
-  const result=await menuDb.functions.invoke('secure-order',{body:{...args,p_device_id:deviceId(),p_pin:checkoutPinRequired?tablePin:null,turnstile_token:token}});
-  if(result.error){let code='';try{code=(await result.error.context.json()).error;}catch{};throw new Error(({TABLE_PIN_REQUIRED:'Ask your waiter for the table PIN.',TABLE_PIN_INVALID:'Incorrect table PIN. Please check with your waiter.',TABLE_SESSION_UNAVAILABLE:'Table session closed or expired. Ask your waiter to open it.',TABLE_PIN_RATE_LIMIT:'Too many PIN attempts. Please wait five minutes.',ORDER_RATE_LIMIT:'Too many orders. Please wait before trying again.',VERIFICATION_FAILED:'Security verification failed. Please try again.',VERIFICATION_REQUIRED:'Please verify again.',SECURITY_UNAVAILABLE:'Security service temporarily unavailable.',ORDER_REJECTED:'Order rejected. Please check your basket and details.'})[code]||'Secure checkout unavailable. Please try again.');}
+  const result=await menuDb.functions.invoke('secure-order',{body:{...args,p_device_id:deviceId(),p_pin:checkoutPinRequired&&tablePin?tablePin:null,p_session_token:checkoutPinRequired?sessionProof:null,turnstile_token:token}});
+  if(result.error){let code='';try{code=(await result.error.context.json()).error;}catch{};if(["TABLE_PIN_REQUIRED","TABLE_PIN_INVALID","TABLE_SESSION_UNAVAILABLE"].includes(code)){try{sessionStorage.removeItem(sessionKey);}catch{} document.getElementById("table-pin").value="";}throw new Error(({TABLE_PIN_REQUIRED:'Ask your waiter for the table PIN.',TABLE_PIN_INVALID:'Incorrect table PIN. Please check with your waiter.',TABLE_SESSION_UNAVAILABLE:'Table session closed or expired. Ask your waiter to open it.',TABLE_PIN_RATE_LIMIT:'Too many PIN attempts. Please wait five minutes.',ORDER_RATE_LIMIT:'Too many orders. Please wait before trying again.',VERIFICATION_FAILED:'Security verification failed. Please try again.',VERIFICATION_REQUIRED:'Please verify again.',SECURITY_UNAVAILABLE:'Security service temporarily unavailable.',ORDER_REJECTED:'Order rejected. Please check your basket and details.'})[code]||'Secure checkout unavailable. Please try again.');}
   receipt=result.data?.receipt;if(!receipt||receipt.id!==order.id)throw new Error('Order receipt unavailable. Please retry.');
+  if(typeof result.data?.session_token==='string'&&/^[0-9a-f]{64}$/.test(result.data.session_token)){try{sessionStorage.setItem(sessionKey,result.data.session_token);}catch{}}
 }else{({data:receipt,error}=await menuDb.rpc('place_restaurant_order',args));}
 
         if(error)throw error;
