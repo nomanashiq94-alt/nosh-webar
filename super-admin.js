@@ -149,7 +149,8 @@ async function refreshRestaurants() {
     const settings = document.createElement('button'); settings.type = 'button'; settings.className = 'restaurant-edit'; settings.textContent = 'Manage Settings';
     settings.addEventListener('click', () => openSettings(r));
     const copy = document.createElement('button'); copy.type='button'; copy.textContent='Copy menu link'; copy.onclick=async()=>{const url=new URL('./',location.href);url.searchParams.set('restaurant',r.slug);try{await navigator.clipboard.writeText(url.href);message('Menu link copied.');}catch{message(url.href);}};
-    li.append(strong, small, edit, manage, subscription, payments, settings, copy); list.append(li);
+    const security=document.createElement('button');security.type='button';security.textContent='Order security';security.onclick=()=>openOrderSecurity(r);
+    li.append(strong, small, edit, manage, subscription, payments, settings, security, copy); list.append(li);
   }
   filterRestaurants();
   await refreshBillingOverview(data || []);
@@ -944,6 +945,39 @@ $('an-export').onclick=()=>{if(!anExport)return;const {r,start,end,id,tab}=anExp
 $('an-refresh').onclick=anLoad;
 for(const id of ['an-start','an-end','an-restaurant'])$(id).addEventListener('change',()=>{if(id!=='an-restaurant')$('an-period').value='custom';anReset();$('an-status').textContent='Filters changed. Select Load report.';});
 
+// Staged security controls: enforcement remains read-only until dynamic checkout is ready.
+let securityDialog=null,securityTicket=0;
+async function openOrderSecurity(r){
+ const ticket=++securityTicket,sessionEpoch=epoch;
+ if(securityDialog)securityDialog.remove();
+ const d=document.createElement('dialog');securityDialog=d;
+ d.style.cssText='max-width:min(92vw,480px);width:100%;padding:24px;border-radius:16px;background:Canvas;color:CanvasText;border:1px solid GrayText';
+ d.innerHTML='<h2>Order security</h2><p id="sec-restaurant"></p><p id="sec-status" role="status">Loading…</p><form id="sec-form" hidden><p>Secure checkout enforcement: <strong id="sec-enforcement"></strong></p><p>Turnstile: mandatory on secure checkout during pilot.</p><label><input type="checkbox" id="sec-rate"> Enable rate limiting</label><label>Orders per device / minute<input id="sec-minute" type="number" min="1" max="100" required></label><label>Orders per device / 15 minutes<input id="sec-window" type="number" min="1" max="500" required></label><label>Orders per table / 5 minutes<input id="sec-table" type="number" min="1" max="500" required></label><p class="hint">Enforcement activation is locked until checkout testing is complete.</p><button type="submit">Save rate limits</button></form><button type="button" id="sec-close">Close</button>';
+ document.body.append(d);const q=id=>d.querySelector('#'+id);
+ q('sec-restaurant').textContent=r.name;
+ q('sec-close').onclick=()=>d.close();d.addEventListener('close',()=>{d.remove();if(securityDialog===d){securityDialog=null;++securityTicket;}});
+ d.showModal();
+ const current=()=>ticket===securityTicket&&sessionEpoch===epoch&&d.isConnected;
+ try{
+ const {data,error}=await db.from('restaurant_order_security').select('*').eq('restaurant_id',r.id).maybeSingle();
+ if(!current())return;if(error)throw error;
+ const c=data||{enforce_secure_checkout:false,rate_limit_enabled:true,device_per_minute:3,device_per_15_minutes:10,table_per_5_minutes:10};
+ q('sec-enforcement').textContent=c.enforce_secure_checkout?'ON':'OFF';
+ q('sec-rate').checked=c.rate_limit_enabled;q('sec-minute').value=c.device_per_minute;q('sec-window').value=c.device_per_15_minutes;q('sec-table').value=c.table_per_5_minutes;
+ q('sec-status').textContent=data?'Settings loaded.':'Not configured. Save to initialize.';
+ q('sec-form').hidden=false;
+ q('sec-form').onsubmit=async e=>{
+ e.preventDefault();if(!current())return;
+ const a=Number(q('sec-minute').value),b=Number(q('sec-window').value),t=Number(q('sec-table').value);
+ if(![a,b,t].every(Number.isInteger)||a<1||a>100||b<a||b>500||t<1||t>500){q('sec-status').textContent='Check limits: 15-minute limit must be at least the minute limit.';return;}
+ const button=e.target.querySelector('button[type=submit]');button.disabled=true;
+ try{
+ const {error}=await db.from('restaurant_order_security').upsert({restaurant_id:r.id,rate_limit_enabled:q('sec-rate').checked,device_per_minute:a,device_per_15_minutes:b,table_per_5_minutes:t},{onConflict:'restaurant_id',defaultToNull:false});
+ if(error)throw error;if(current())q('sec-status').textContent='Rate limits saved.';
+ }catch(err){if(current())q('sec-status').textContent='Save failed: '+err.message;}finally{button.disabled=false;}
+ };
+ }catch(err){if(current())q('sec-status').textContent='Load failed: '+err.message;}
+}
 showView('dashboard');
 
 checkSession();
