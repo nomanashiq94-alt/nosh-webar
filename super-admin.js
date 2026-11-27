@@ -952,7 +952,7 @@ async function openOrderSecurity(r){
  if(securityDialog)securityDialog.remove();
  const d=document.createElement('dialog');securityDialog=d;
  d.style.cssText='max-width:min(92vw,480px);width:100%;padding:24px;border-radius:16px;background:Canvas;color:CanvasText;border:1px solid GrayText';
- d.innerHTML='<h2>Order security</h2><p id="sec-restaurant"></p><p id="sec-status" role="status">Loading…</p><form id="sec-form" hidden><label><input type="checkbox" id="sec-enforcement"> Enforce secure checkout</label><p>Turnstile is mandatory when secure checkout is used.</p><label><input type="checkbox" id="sec-rate"> Enable rate limiting</label><label>Orders per device / minute<input id="sec-minute" type="number" min="1" max="100" required></label><label>Orders per device / 15 minutes<input id="sec-window" type="number" min="1" max="500" required></label><label>Orders per table / 5 minutes<input id="sec-table" type="number" min="1" max="500" required></label><p class="hint">Enabling enforcement blocks legacy checkout. Verify the deployed menu before enabling. Burger House pilot still uses verification when OFF.</p><button type="submit">Save security settings</button></form><button type="button" id="sec-close">Close</button>';
+ d.innerHTML='<h2>Order security</h2><p id="sec-restaurant"></p><p id="sec-status" role="status">Loading…</p><form id="sec-form" hidden><label><input type="checkbox" id="sec-enforcement"> Enforce secure checkout</label><label><input type="checkbox" id="sec-pilot"> Secure checkout pilot (without blocking legacy orders)</label><p>Turnstile is mandatory when secure checkout is used.</p><label><input type="checkbox" id="sec-rate"> Enable rate limiting</label><label>Orders per device / minute<input id="sec-minute" type="number" min="1" max="100" required></label><label>Orders per device / 15 minutes<input id="sec-window" type="number" min="1" max="500" required></label><label>Orders per table / 5 minutes<input id="sec-table" type="number" min="1" max="500" required></label><p class="hint">Enabling enforcement blocks legacy checkout. Verify the deployed menu before enabling. Pilot mode, if enabled, uses verification even when enforcement is OFF.</p><button type="submit">Save security settings</button></form><button type="button" id="sec-close">Close</button>';
  document.body.append(d);const q=id=>d.querySelector('#'+id);
  q('sec-restaurant').textContent=r.name;
  q('sec-close').onclick=()=>d.close();d.addEventListener('close',()=>{d.remove();if(securityDialog===d){securityDialog=null;++securityTicket;}});
@@ -962,7 +962,7 @@ async function openOrderSecurity(r){
  const {data,error}=await db.from('restaurant_order_security').select('*').eq('restaurant_id',r.id).maybeSingle();
  if(!current())return;if(error)throw error;
  const c=data||{enforce_secure_checkout:false,rate_limit_enabled:true,device_per_minute:3,device_per_15_minutes:10,table_per_5_minutes:10};
- q('sec-enforcement').checked=c.enforce_secure_checkout; let savedEnforcement=c.enforce_secure_checkout; let exists=!!data;
+ q('sec-pilot').checked=!!c.secure_checkout_pilot;q('sec-enforcement').checked=c.enforce_secure_checkout; let savedEnforcement=c.enforce_secure_checkout; let exists=!!data;
  q('sec-rate').checked=c.rate_limit_enabled;q('sec-minute').value=c.device_per_minute;q('sec-window').value=c.device_per_15_minutes;q('sec-table').value=c.table_per_5_minutes;
  q('sec-status').textContent=data?'Settings loaded.':'Not configured. Save to initialize.';
  q('sec-form').hidden=false;
@@ -974,7 +974,7 @@ async function openOrderSecurity(r){
  if(enforce!==savedEnforcement&&!confirm(enforce?'Enable secure checkout? Older checkout pages may stop accepting orders.':'Disable enforcement? Direct legacy orders will be allowed.'))return;
  const button=e.target.querySelector('button[type=submit]');button.disabled=true;
  try{
- const values={enforce_secure_checkout:enforce,rate_limit_enabled:q('sec-rate').checked,device_per_minute:a,device_per_15_minutes:b,table_per_5_minutes:t};
+ const values={secure_checkout_pilot:q('sec-pilot').checked,enforce_secure_checkout:enforce,rate_limit_enabled:q('sec-rate').checked,device_per_minute:a,device_per_15_minutes:b,table_per_5_minutes:t};
  const request=exists?db.from('restaurant_order_security').update(values).eq('restaurant_id',r.id):db.from('restaurant_order_security').insert({restaurant_id:r.id,...values});
  const {data:updated,error}=await request.select('restaurant_id,enforce_secure_checkout').single();
  if(error||!updated)throw error||Error('Settings not saved');
