@@ -974,13 +974,16 @@ async function openOrderSecurity(r){
  const duration=q('sec-pin-duration').value;
  if(!['30','60','120','240','manual'].includes(duration)){q('sec-status').textContent='Invalid table session duration.';return;}
  const enforce=q('sec-enforcement').checked;
+ const pinEnabled=q('sec-pin-enabled').checked;
+ if(pinEnabled&&!enforce){q('sec-status').textContent='Table PIN requires secure checkout enforcement.';return;}
  if(enforce!==savedEnforcement&&!confirm(enforce?'Enable secure checkout? Older checkout pages may stop accepting orders.':'Disable enforcement? Direct legacy orders will be allowed.'))return;
  const button=e.target.querySelector('button[type=submit]');button.disabled=true;
  try{
- const values={table_pin_duration_minutes:duration==='manual'?null:Number(duration),secure_checkout_pilot:q('sec-pilot').checked,enforce_secure_checkout:enforce,rate_limit_enabled:q('sec-rate').checked,device_per_minute:a,device_per_15_minutes:b,table_per_5_minutes:t};
+ const values={table_pin_enabled:pinEnabled,table_pin_duration_minutes:duration==='manual'?null:Number(duration),secure_checkout_pilot:q('sec-pilot').checked,enforce_secure_checkout:enforce,rate_limit_enabled:q('sec-rate').checked,device_per_minute:a,device_per_15_minutes:b,table_per_5_minutes:t};
  const request=exists?db.from('restaurant_order_security').update(values).eq('restaurant_id',r.id):db.from('restaurant_order_security').insert({restaurant_id:r.id,...values});
- const {data:updated,error}=await request.select('restaurant_id,enforce_secure_checkout,table_pin_duration_minutes').single();
+ const {data:updated,error}=await request.select('restaurant_id,enforce_secure_checkout,table_pin_enabled,table_pin_duration_minutes').single();
  if(error||!updated)throw error||Error('Settings not saved');
+ if(updated.table_pin_enabled!==pinEnabled)throw Error('Table PIN setting could not be confirmed');
  if(updated.table_pin_duration_minutes!==(duration==='manual'?null:Number(duration)))throw Error('Table duration could not be confirmed');
  exists=true;savedEnforcement=updated.enforce_secure_checkout;
  if(current())q('sec-status').textContent='Security settings saved.';
