@@ -283,6 +283,7 @@
           </div>
         </div>
 
+        <div id="secure-verification" class="hidden"><div id="turnstile-widget"></div><p id="turnstile-status" role="status" class="text-slate-400 mt-1"></p></div>
         <div class="pt-3 border-t border-slate-800 flex items-center justify-between">
           <div>
             <span class="block text-[10px] text-slate-400">Total Payable</span>
@@ -835,14 +836,57 @@
       }, 300);
     }
 
+    const securePilot=()=>window.NOSH_ACTIVE_RESTAURANT?.id==='f579dcfe-a29a-449f-b409-c9a5a01ecb14';
+    let tsWidget=null, tsToken='', tsLoad=null, tsGeneration=0, memoryDevice=null;
+    function deviceId(){
+      if(memoryDevice)return memoryDevice;
+      try{const k='nosh-order-device';let v=localStorage.getItem(k);if(!v||!/^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.test(v)){v=crypto.randomUUID();localStorage.setItem(k,v);}return memoryDevice=v;}catch{return memoryDevice=crypto.randomUUID();}
+    }
+    function loadTurnstile(){
+      if(window.turnstile)return Promise.resolve();
+      if(tsLoad)return tsLoad;
+      tsLoad=new Promise((resolve,reject)=>{
+        const script=document.createElement('script');
+        script.src='https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+        script.async=true;
+        const timer=setTimeout(()=>{script.remove();reject(new Error('Verification timed out'));},15000);
+        script.onload=()=>{clearTimeout(timer);resolve();};
+        script.onerror=()=>{clearTimeout(timer);script.remove();reject(new Error('Verification could not load'));};
+        document.head.appendChild(script);
+      }).catch(e=>{tsLoad=null;throw e;});
+      return tsLoad;
+    }
+    function clearVerification(){
+      ++tsGeneration;tsToken='';
+      if(tsWidget!==null){try{window.turnstile.remove(tsWidget);}catch{}tsWidget=null;}
+    }
+    async function prepareVerification(){
+      clearVerification();
+      const generation=tsGeneration, panel=document.getElementById('secure-verification'),status=document.getElementById('turnstile-status');
+      panel.classList.toggle('hidden',!securePilot());
+      if(!securePilot())return;
+      status.textContent='Loading security verification…';
+      try{
+        await loadTurnstile();
+        if(generation!==tsGeneration)return;
+        tsWidget=window.turnstile.render('#turnstile-widget',{sitekey:'0x4AAAAAAGVGw09NpfqZmIbJ',action:'place_order',theme:'auto',size:'flexible',
+          callback:t=>{if(generation===tsGeneration){tsToken=t;status.textContent='Security verification ready.';}},
+          'expired-callback':()=>{if(generation===tsGeneration){tsToken='';status.textContent='Verification expired. Please verify again.';}},
+          'error-callback':()=>{if(generation===tsGeneration){tsToken='';status.textContent='Verification failed. Please try again.';}}
+        });
+        status.textContent='Complete security verification if prompted.';
+      }catch{if(generation===tsGeneration)status.textContent='Verification unavailable. Press Place Order to retry loading.';}
+    }
     function openCheckoutModal() {
       if (!orderingAllowed() || cart.length === 0) return;
       toggleCartDrawer();
       document.getElementById('checkout-modal').classList.remove('hidden');
+      void prepareVerification();
     }
 
     function closeCheckoutModal() {
       document.getElementById('checkout-modal').classList.add('hidden');
+      clearVerification();
     }
 
     let placingOrder=false, pendingOrder=null, pendingSignature='';
@@ -863,6 +907,7 @@
         pendingOrder={id:crypto.randomUUID(),token:crypto.randomUUID(),...payload};
       }
       const order=pendingOrder;
+      if(securePilot()&&!tsToken){if(tsWidget===null)void prepareVerification();else try{window.turnstile.reset(tsWidget);}catch{} return alert('Please complete security verification, then place your order.');}
       placingOrder=true;
       const button=e.target.querySelector('button[type="submit"]');
       const label=button.textContent; button.disabled=true;button.textContent='Sending order…';
@@ -874,7 +919,7 @@ if (!restaurantId) {
   throw new Error('Restaurant not loaded. Please refresh the page.');
 }
 
-const {data:receipt,error}=await menuDb.rpc('place_restaurant_order',{
+const args={
   p_restaurant_id: restaurantId,
   p_id: order.id,
   p_token: order.token,
@@ -884,7 +929,14 @@ const {data:receipt,error}=await menuDb.rpc('place_restaurant_order',{
   p_payment: order.payment,
   p_items: order.items,
   p_expected_total: order.total
-});
+};
+let receipt,error;
+if(securePilot()){
+  const token=tsToken;tsToken='';
+  const result=await menuDb.functions.invoke('secure-order',{body:{...args,p_device_id:deviceId(),turnstile_token:token}});
+  if(result.error){let code='';try{code=(await result.error.context.json()).error;}catch{};throw new Error(({ORDER_RATE_LIMIT:'Too many orders. Please wait before trying again.',VERIFICATION_FAILED:'Security verification failed. Please try again.',VERIFICATION_REQUIRED:'Please verify again.',SECURITY_UNAVAILABLE:'Security service temporarily unavailable.',ORDER_REJECTED:'Order rejected. Please check your basket and details.'})[code]||'Secure checkout unavailable. Please try again.');}
+  receipt=result.data?.receipt;if(!receipt||receipt.id!==order.id)throw new Error('Order receipt unavailable. Please retry.');
+}else{({data:receipt,error}=await menuDb.rpc('place_restaurant_order',args));}
 
         if(error)throw error;
         cart=[];updateCartUI();closeCheckoutModal();
@@ -900,6 +952,7 @@ const {data:receipt,error}=await menuDb.rpc('place_restaurant_order',{
         await loadMenu();
       } finally {
         placingOrder=false;button.textContent=label;syncOrderingControls();
+        if(securePilot()&&!document.getElementById('checkout-modal').classList.contains('hidden'))void prepareVerification();
       }
     }
     function initializeTables(){
