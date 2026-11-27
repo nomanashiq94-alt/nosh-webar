@@ -845,7 +845,7 @@
       const [{data,error},pinMode]=await Promise.all([menuDb.rpc('get_checkout_security_mode',{p_restaurant_id:id}),menuDb.rpc('get_table_pin_required',{p_restaurant_id:id})]);
       if(pinMode.error||typeof pinMode.data!=='boolean')throw Error('Table security settings unavailable. Please retry.');
       checkoutPinRequired=pinMode.data;
-      document.getElementById('table-pin-panel').classList.toggle('hidden',!checkoutPinRequired);
+      syncTablePinPanel();
       if(error||typeof data!=='boolean')throw Error('Security settings unavailable. Please retry.');
       checkoutSecure=data||checkoutPinRequired;
     }
@@ -853,6 +853,11 @@
     function deviceId(){
       if(memoryDevice)return memoryDevice;
       try{const k='nosh-order-device';let v=localStorage.getItem(k);if(!v||!/^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.test(v)){v=crypto.randomUUID();localStorage.setItem(k,v);}return memoryDevice=v;}catch{return memoryDevice=crypto.randomUUID();}
+    }
+    function syncTablePinPanel(){
+      const table=Number(document.getElementById('cust-table').value);
+      let proof=null;try{proof=sessionStorage.getItem('nosh-table-proof:'+window.NOSH_ACTIVE_RESTAURANT?.id+':'+table+':'+deviceId());}catch{}
+      document.getElementById('table-pin-panel').classList.toggle('hidden',!checkoutPinRequired||!!proof);
     }
     function loadTurnstile(){
       if(window.turnstile)return Promise.resolve();
@@ -956,7 +961,7 @@ let receipt,error;
 if(securePilot()){
   const token=tsToken;tsToken='';
   const result=await menuDb.functions.invoke('secure-order',{body:{...args,p_device_id:deviceId(),p_pin:checkoutPinRequired&&tablePin?tablePin:null,p_session_token:checkoutPinRequired?sessionProof:null,turnstile_token:token}});
-  if(result.error){let code='';try{code=(await result.error.context.json()).error;}catch{};if(["TABLE_PIN_REQUIRED","TABLE_PIN_INVALID","TABLE_SESSION_UNAVAILABLE"].includes(code)){try{sessionStorage.removeItem(sessionKey);}catch{} document.getElementById("table-pin").value="";}throw new Error(({TABLE_PIN_REQUIRED:'Ask your waiter for the table PIN.',TABLE_PIN_INVALID:'Incorrect table PIN. Please check with your waiter.',TABLE_SESSION_UNAVAILABLE:'Table session closed or expired. Ask your waiter to open it.',TABLE_PIN_RATE_LIMIT:'Too many PIN attempts. Please wait five minutes.',ORDER_RATE_LIMIT:'Too many orders. Please wait before trying again.',VERIFICATION_FAILED:'Security verification failed. Please try again.',VERIFICATION_REQUIRED:'Please verify again.',SECURITY_UNAVAILABLE:'Security service temporarily unavailable.',ORDER_REJECTED:'Order rejected. Please check your basket and details.'})[code]||'Secure checkout unavailable. Please try again.');}
+  if(result.error){let code='';try{code=(await result.error.context.json()).error;}catch{};if(["TABLE_PIN_REQUIRED","TABLE_PIN_INVALID","TABLE_SESSION_UNAVAILABLE"].includes(code)){try{sessionStorage.removeItem(sessionKey);}catch{} document.getElementById("table-pin").value="";syncTablePinPanel();}throw new Error(({TABLE_PIN_REQUIRED:'Ask your waiter for the table PIN.',TABLE_PIN_INVALID:'Incorrect table PIN. Please check with your waiter.',TABLE_SESSION_UNAVAILABLE:'Table session closed or expired. Ask your waiter to open it.',TABLE_PIN_RATE_LIMIT:'Too many PIN attempts. Please wait five minutes.',ORDER_RATE_LIMIT:'Too many orders. Please wait before trying again.',VERIFICATION_FAILED:'Security verification failed. Please try again.',VERIFICATION_REQUIRED:'Please verify again.',SECURITY_UNAVAILABLE:'Security service temporarily unavailable.',ORDER_REJECTED:'Order rejected. Please check your basket and details.'})[code]||'Secure checkout unavailable. Please try again.');}
   receipt=result.data?.receipt;if(!receipt||receipt.id!==order.id)throw new Error('Order receipt unavailable. Please retry.');
   if(typeof result.data?.session_token==='string'&&/^[0-9a-f]{64}$/.test(result.data.session_token)){try{sessionStorage.setItem(sessionKey,result.data.session_token);}catch{}}
 }else{({data:receipt,error}=await menuDb.rpc('place_restaurant_order',args));}
@@ -1005,6 +1010,7 @@ if(securePilot()){
       renderMenu();
       updateCartUI();
       initializeTables();
+      document.getElementById('cust-table').addEventListener('change',()=>{document.getElementById('table-pin').value='';syncTablePinPanel();});
       startCloud();
     });
   </script>
