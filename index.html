@@ -836,7 +836,15 @@
       }, 300);
     }
 
-    const securePilot=()=>window.NOSH_ACTIVE_RESTAURANT?.id==='f579dcfe-a29a-449f-b409-c9a5a01ecb14';
+    let checkoutSecure=null;
+    const securePilot=()=>checkoutSecure===true;
+    async function refreshCheckoutMode(){
+      const id=window.NOSH_ACTIVE_RESTAURANT?.id;
+      if(!id)throw Error('Restaurant not loaded.');
+      const {data,error}=await menuDb.rpc('get_checkout_security_mode',{p_restaurant_id:id});
+      if(error||typeof data!=='boolean')throw Error('Security settings unavailable. Please retry.');
+      checkoutSecure=data||id==='f579dcfe-a29a-449f-b409-c9a5a01ecb14';
+    }
     let tsWidget=null, tsToken='', tsLoad=null, tsGeneration=0, memoryDevice=null;
     function deviceId(){
       if(memoryDevice)return memoryDevice;
@@ -881,7 +889,11 @@
       if (!orderingAllowed() || cart.length === 0) return;
       toggleCartDrawer();
       document.getElementById('checkout-modal').classList.remove('hidden');
-      void prepareVerification();
+      checkoutSecure=null;
+      const panel=document.getElementById('secure-verification');
+      panel.classList.remove('hidden');
+      document.getElementById('turnstile-status').textContent='Checking security settings…';
+      refreshCheckoutMode().then(()=>{if(!document.getElementById('checkout-modal').classList.contains('hidden'))void prepareVerification();}).catch(e=>{document.getElementById('turnstile-status').textContent=e.message;});
     }
 
     function closeCheckoutModal() {
@@ -907,6 +919,7 @@
         pendingOrder={id:crypto.randomUUID(),token:crypto.randomUUID(),...payload};
       }
       const order=pendingOrder;
+      if(checkoutSecure===null){try{await refreshCheckoutMode();void prepareVerification();}catch(err){alert(err.message);}return;}
       if(securePilot()&&!tsToken){if(tsWidget===null)void prepareVerification();else try{window.turnstile.reset(tsWidget);}catch{} return alert('Please complete security verification, then place your order.');}
       placingOrder=true;
       const button=e.target.querySelector('button[type="submit"]');
@@ -946,7 +959,8 @@ if(securePilot()){
         document.getElementById('order-form').reset();initializeTables();
         pendingOrder=null;pendingSignature='';
       } catch(error) {
-        if (String(error.message).includes('Restaurant ordering is temporarily unavailable')) {
+        if(String(error.message).includes('SECURE_CHECKOUT_REQUIRED')){checkoutSecure=true;alert('Security settings changed. Please verify and retry.');}
+        else if (String(error.message).includes('Restaurant ordering is temporarily unavailable')) {
           ++statusRequest; setOrderingState('blocked'); closeCheckoutModal();
         } else { alert('Order confirmation failed. '+error.message+' Your cart is kept; retry from this page to confirm.'); }
         await loadMenu();
