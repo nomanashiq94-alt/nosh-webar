@@ -1,4 +1,7 @@
 const STATUSES = ['Received','Preparing','Ready','Served','Cancelled'];
+const NEXT_STATUS={Received:['Preparing','Cancelled'],Preparing:['Ready','Cancelled'],Ready:['Served','Cancelled'],Served:[],Cancelled:[]};
+const allowedNext=status=>Object.hasOwn(NEXT_STATUS,status)?NEXT_STATUS[status]:[];
+const statusUpdates=new Set();
 let db, channel, orders=[], generation=0, request=0, signedIn=false;
 let kitchenRestaurantId = null;
 let kitchenView = 'active';
@@ -87,7 +90,7 @@ function renderKitchen(){
       <div class="text-xs text-slate-400"><p>Customer: ${esc(String(o.name??'').trim()||'Guest')} (${esc(o.phone||'N/A')})</p><p>Payment: ${esc(o.payment)} at Counter</p><p>${esc(new Date(o.createdAt).toLocaleString())}</p></div>
       <div class="bg-slate-950 p-3 rounded-xl space-y-1">${(Array.isArray(o.items)?o.items:[]).filter(i=>i && typeof i === "object").map(i=>`<div class="flex justify-between gap-2 text-sm"><span>${esc(i.quantity)} × ${esc(i.title)}</span><span>Rs. ${money(Number(i.price)*Number(i.quantity))}</span></div>`).join('')}</div>
       ${renderBill(o)}<div class="flex justify-end items-center">
-      <select aria-label="Order status" data-order="${esc(o.id)}" class="admin-input text-xs !w-auto">${STATUSES.map(s=>`<option ${s===o.status?'selected':''}>${s}</option>`).join('')}</select></div>
+      <select aria-label="Order status" data-order="${esc(o.id)}" class="admin-input text-xs !w-auto">${[o.status,...allowedNext(o.status)].map(s=>`<option ${s===o.status?'selected':''}>${esc(s)}</option>`).join('')}</select></div>
     </div>`).join(''):'<p class="col-span-full text-slate-400 py-12 text-center">No unarchived orders. Waiting for customers…</p>';
 }
 async function refreshOrders(recovery=false){
@@ -109,10 +112,18 @@ async function refreshOrders(recovery=false){
   renderKitchen();updateControls();return true;
 }
 async function changeOrderStatus(id,status){
-  if(paused||!navigator.onLine||!STATUSES.includes(status)||!signedIn||!kitchenRestaurantId||kitchenView!=='active')return;
-  const {data,error}=await db.from('orders').update({status}).eq('id',id).eq('restaurant_id',kitchenRestaurantId).select('id');
-  if(error||!data?.length){message('Status was not saved: '+(error?.message||'No permission or order missing'));await refreshOrders();return;}
-  await refreshOrders();
+  if(paused||!navigator.onLine||!signedIn||!kitchenRestaurantId||kitchenView!=='active'||statusUpdates.has(id))return;
+  const order=orders.find(o=>o.id===id);
+  if(!order||order.archived||!allowedNext(order.status).includes(status)){renderKitchen();updateControls();return;}
+  const expected=order.status, restaurantId=kitchenRestaurantId, epoch=generation;
+  statusUpdates.add(id);
+  try{
+    const {data,error}=await db.from('orders').update({status}).eq('id',id).eq('restaurant_id',restaurantId).eq('status',expected).eq('archived',false).select('id');
+    if(epoch!==generation)return;
+    if(error||!data?.length)message('Status not saved: '+(error?.message||'Order changed by another staff member. Refreshing…'));
+    await refreshOrders();
+  }catch(error){if(epoch===generation){message('Status confirmation unavailable. Refreshing…');await refreshOrders();}}
+  finally{statusUpdates.delete(id);}
 }
 async function clearOrders(){
   if(paused||!navigator.onLine||!signedIn || !kitchenRestaurantId || kitchenView!=='active')return;
