@@ -961,9 +961,10 @@ async function openOrderSecurity(r){
  try{
  const {data,error}=await db.from('restaurant_order_security').select('*').eq('restaurant_id',r.id).maybeSingle();
  if(!current())return;if(error)throw error;
- const c=data||{enforce_secure_checkout:false,rate_limit_enabled:true,device_per_minute:3,device_per_15_minutes:10,table_per_5_minutes:10};
+ if(!data)throw Error('Security configuration missing. Contact administrator.');
+ const c=data;
  q('sec-pin-enabled').checked=!!c.table_pin_enabled;q('sec-pin-duration').value=data?(c.table_pin_duration_minutes===null?'manual':String(c.table_pin_duration_minutes)):'120';
- q('sec-pilot').checked=!!c.secure_checkout_pilot;q('sec-enforcement').checked=c.enforce_secure_checkout; let savedEnforcement=c.enforce_secure_checkout; let exists=!!data; let savedRevision=data?.revision??0;
+ q('sec-pilot').checked=!!c.secure_checkout_pilot;q('sec-enforcement').checked=c.enforce_secure_checkout; let savedEnforcement=c.enforce_secure_checkout; let savedRevision=data.revision;
  q('sec-rate').checked=c.rate_limit_enabled;q('sec-minute').value=c.device_per_minute;q('sec-window').value=c.device_per_15_minutes;q('sec-table').value=c.table_per_5_minutes;
  q('sec-status').textContent=data?'Settings loaded.':'Not configured. Save to initialize.';
  q('sec-form').hidden=false;
@@ -979,13 +980,10 @@ async function openOrderSecurity(r){
  if(enforce!==savedEnforcement&&!confirm(enforce?'Enable secure checkout? Older checkout pages may stop accepting orders.':'Disable enforcement? Direct legacy orders will be allowed.'))return;
  const button=e.target.querySelector('button[type=submit]');button.disabled=true;
  try{
- const values={table_pin_enabled:pinEnabled,table_pin_duration_minutes:duration==='manual'?null:Number(duration),secure_checkout_pilot:q('sec-pilot').checked,enforce_secure_checkout:enforce,rate_limit_enabled:q('sec-rate').checked,device_per_minute:a,device_per_15_minutes:b,table_per_5_minutes:t};
- const request=exists?db.from('restaurant_order_security').update(values).eq('restaurant_id',r.id).eq('revision',savedRevision):db.from('restaurant_order_security').insert({restaurant_id:r.id,...values});
- const {data:updated,error}=await request.select('restaurant_id,enforce_secure_checkout,table_pin_enabled,table_pin_duration_minutes,revision').maybeSingle();
- if(error||!updated)throw error||Error('Settings changed in another session. Close and reopen settings before saving.');
- if(updated.table_pin_enabled!==pinEnabled)throw Error('Table PIN setting could not be confirmed');
- if(updated.table_pin_duration_minutes!==(duration==='manual'?null:Number(duration)))throw Error('Table duration could not be confirmed');
- exists=true;savedEnforcement=updated.enforce_secure_checkout;savedRevision=updated.revision;
+ const {data:result,error}=await db.functions.invoke('manage-order-security',{body:{action:'save',p_restaurant_id:r.id,p_revision:savedRevision,p_enforce:enforce,p_pilot:q('sec-pilot').checked,p_rate:q('sec-rate').checked,p_minute:a,p_window:b,p_table:t,p_pin:pinEnabled,p_duration:duration==='manual'?null:Number(duration)}});
+ if(error){let code;try{code=(await error.context.json()).error;}catch{}throw Error(code==='SETTINGS_CHANGED'?'Settings changed in another session. Close and reopen settings before saving.':code||error.message);}
+ if(!result?.success||!Number.isSafeInteger(result.revision)||result.revision!==savedRevision+1)throw Error('Settings save could not be confirmed. Close and reopen settings.');
+ savedEnforcement=enforce;savedRevision=result.revision;
  if(current())q('sec-status').textContent='Security settings saved.';
  }catch(err){if(current())q('sec-status').textContent='Save failed: '+err.message;}finally{button.disabled=false;}
  };
