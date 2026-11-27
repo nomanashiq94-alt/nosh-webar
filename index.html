@@ -911,10 +911,14 @@
       clearVerification();
     }
 
-    let placingOrder=false, pendingOrder=null, pendingSignature='';
+    let placingOrder=false, preparingOrder=false, pendingOrder=null, pendingSignature='';
     async function handlePlaceOrder(e) {
       e.preventDefault();
-      if(placingOrder || !cart.length || !menuReady || !orderingAllowed()) return;
+      if(placingOrder || preparingOrder || !cart.length || !menuReady || !orderingAllowed()) return;
+      preparingOrder=true;
+      try { await submitPreparedOrder(e); } finally { preparingOrder=false; }
+    }
+    async function submitPreparedOrder(e) {
       const name=document.getElementById('cust-name').value.trim();
       const table=Number(document.getElementById('cust-table').value);
       const payment=document.getElementById('cust-payment').value;
