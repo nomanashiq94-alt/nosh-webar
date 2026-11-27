@@ -963,7 +963,7 @@ async function openOrderSecurity(r){
  if(!current())return;if(error)throw error;
  const c=data||{enforce_secure_checkout:false,rate_limit_enabled:true,device_per_minute:3,device_per_15_minutes:10,table_per_5_minutes:10};
  q('sec-pin-enabled').checked=!!c.table_pin_enabled;q('sec-pin-duration').value=data?(c.table_pin_duration_minutes===null?'manual':String(c.table_pin_duration_minutes)):'120';
- q('sec-pilot').checked=!!c.secure_checkout_pilot;q('sec-enforcement').checked=c.enforce_secure_checkout; let savedEnforcement=c.enforce_secure_checkout; let exists=!!data;
+ q('sec-pilot').checked=!!c.secure_checkout_pilot;q('sec-enforcement').checked=c.enforce_secure_checkout; let savedEnforcement=c.enforce_secure_checkout; let exists=!!data; let savedRevision=data?.revision??0;
  q('sec-rate').checked=c.rate_limit_enabled;q('sec-minute').value=c.device_per_minute;q('sec-window').value=c.device_per_15_minutes;q('sec-table').value=c.table_per_5_minutes;
  q('sec-status').textContent=data?'Settings loaded.':'Not configured. Save to initialize.';
  q('sec-form').hidden=false;
@@ -980,12 +980,12 @@ async function openOrderSecurity(r){
  const button=e.target.querySelector('button[type=submit]');button.disabled=true;
  try{
  const values={table_pin_enabled:pinEnabled,table_pin_duration_minutes:duration==='manual'?null:Number(duration),secure_checkout_pilot:q('sec-pilot').checked,enforce_secure_checkout:enforce,rate_limit_enabled:q('sec-rate').checked,device_per_minute:a,device_per_15_minutes:b,table_per_5_minutes:t};
- const request=exists?db.from('restaurant_order_security').update(values).eq('restaurant_id',r.id):db.from('restaurant_order_security').insert({restaurant_id:r.id,...values});
- const {data:updated,error}=await request.select('restaurant_id,enforce_secure_checkout,table_pin_enabled,table_pin_duration_minutes').single();
- if(error||!updated)throw error||Error('Settings not saved');
+ const request=exists?db.from('restaurant_order_security').update(values).eq('restaurant_id',r.id).eq('revision',savedRevision):db.from('restaurant_order_security').insert({restaurant_id:r.id,...values});
+ const {data:updated,error}=await request.select('restaurant_id,enforce_secure_checkout,table_pin_enabled,table_pin_duration_minutes,revision').maybeSingle();
+ if(error||!updated)throw error||Error('Settings changed in another session. Close and reopen settings before saving.');
  if(updated.table_pin_enabled!==pinEnabled)throw Error('Table PIN setting could not be confirmed');
  if(updated.table_pin_duration_minutes!==(duration==='manual'?null:Number(duration)))throw Error('Table duration could not be confirmed');
- exists=true;savedEnforcement=updated.enforce_secure_checkout;
+ exists=true;savedEnforcement=updated.enforce_secure_checkout;savedRevision=updated.revision;
  if(current())q('sec-status').textContent='Security settings saved.';
  }catch(err){if(current())q('sec-status').textContent='Save failed: '+err.message;}finally{button.disabled=false;}
  };
