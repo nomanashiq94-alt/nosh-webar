@@ -945,14 +945,14 @@ $('an-export').onclick=()=>{if(!anExport)return;const {r,start,end,id,tab}=anExp
 $('an-refresh').onclick=anLoad;
 for(const id of ['an-start','an-end','an-restaurant'])$(id).addEventListener('change',()=>{if(id!=='an-restaurant')$('an-period').value='custom';anReset();$('an-status').textContent='Filters changed. Select Load report.';});
 
-// Staged security controls: enforcement remains read-only until dynamic checkout is ready.
+// Restaurant-level security controls.
 let securityDialog=null,securityTicket=0;
 async function openOrderSecurity(r){
  const ticket=++securityTicket,sessionEpoch=epoch;
  if(securityDialog)securityDialog.remove();
  const d=document.createElement('dialog');securityDialog=d;
  d.style.cssText='max-width:min(92vw,480px);width:100%;padding:24px;border-radius:16px;background:Canvas;color:CanvasText;border:1px solid GrayText';
- d.innerHTML='<h2>Order security</h2><p id="sec-restaurant"></p><p id="sec-status" role="status">Loading…</p><form id="sec-form" hidden><p>Secure checkout enforcement: <strong id="sec-enforcement"></strong></p><p>Turnstile: mandatory on secure checkout during pilot.</p><label><input type="checkbox" id="sec-rate"> Enable rate limiting</label><label>Orders per device / minute<input id="sec-minute" type="number" min="1" max="100" required></label><label>Orders per device / 15 minutes<input id="sec-window" type="number" min="1" max="500" required></label><label>Orders per table / 5 minutes<input id="sec-table" type="number" min="1" max="500" required></label><p class="hint">Enforcement activation is locked until checkout testing is complete.</p><button type="submit">Save rate limits</button></form><button type="button" id="sec-close">Close</button>';
+ d.innerHTML='<h2>Order security</h2><p id="sec-restaurant"></p><p id="sec-status" role="status">Loading…</p><form id="sec-form" hidden><label><input type="checkbox" id="sec-enforcement"> Enforce secure checkout</label><p>Turnstile is mandatory when secure checkout is used.</p><label><input type="checkbox" id="sec-rate"> Enable rate limiting</label><label>Orders per device / minute<input id="sec-minute" type="number" min="1" max="100" required></label><label>Orders per device / 15 minutes<input id="sec-window" type="number" min="1" max="500" required></label><label>Orders per table / 5 minutes<input id="sec-table" type="number" min="1" max="500" required></label><p class="hint">Enabling enforcement blocks legacy checkout. Verify the deployed menu before enabling. Burger House pilot still uses verification when OFF.</p><button type="submit">Save security settings</button></form><button type="button" id="sec-close">Close</button>';
  document.body.append(d);const q=id=>d.querySelector('#'+id);
  q('sec-restaurant').textContent=r.name;
  q('sec-close').onclick=()=>d.close();d.addEventListener('close',()=>{d.remove();if(securityDialog===d){securityDialog=null;++securityTicket;}});
@@ -962,7 +962,7 @@ async function openOrderSecurity(r){
  const {data,error}=await db.from('restaurant_order_security').select('*').eq('restaurant_id',r.id).maybeSingle();
  if(!current())return;if(error)throw error;
  const c=data||{enforce_secure_checkout:false,rate_limit_enabled:true,device_per_minute:3,device_per_15_minutes:10,table_per_5_minutes:10};
- q('sec-enforcement').textContent=c.enforce_secure_checkout?'ON':'OFF';
+ q('sec-enforcement').checked=c.enforce_secure_checkout; let savedEnforcement=c.enforce_secure_checkout; let exists=!!data;
  q('sec-rate').checked=c.rate_limit_enabled;q('sec-minute').value=c.device_per_minute;q('sec-window').value=c.device_per_15_minutes;q('sec-table').value=c.table_per_5_minutes;
  q('sec-status').textContent=data?'Settings loaded.':'Not configured. Save to initialize.';
  q('sec-form').hidden=false;
@@ -970,10 +970,16 @@ async function openOrderSecurity(r){
  e.preventDefault();if(!current())return;
  const a=Number(q('sec-minute').value),b=Number(q('sec-window').value),t=Number(q('sec-table').value);
  if(![a,b,t].every(Number.isInteger)||a<1||a>100||b<a||b>500||t<1||t>500){q('sec-status').textContent='Check limits: 15-minute limit must be at least the minute limit.';return;}
+ const enforce=q('sec-enforcement').checked;
+ if(enforce!==savedEnforcement&&!confirm(enforce?'Enable secure checkout? Older checkout pages may stop accepting orders.':'Disable enforcement? Direct legacy orders will be allowed.'))return;
  const button=e.target.querySelector('button[type=submit]');button.disabled=true;
  try{
- const {error}=await db.from('restaurant_order_security').upsert({restaurant_id:r.id,rate_limit_enabled:q('sec-rate').checked,device_per_minute:a,device_per_15_minutes:b,table_per_5_minutes:t},{onConflict:'restaurant_id',defaultToNull:false});
- if(error)throw error;if(current())q('sec-status').textContent='Rate limits saved.';
+ const values={enforce_secure_checkout:enforce,rate_limit_enabled:q('sec-rate').checked,device_per_minute:a,device_per_15_minutes:b,table_per_5_minutes:t};
+ const request=exists?db.from('restaurant_order_security').update(values).eq('restaurant_id',r.id):db.from('restaurant_order_security').insert({restaurant_id:r.id,...values});
+ const {data:updated,error}=await request.select('restaurant_id,enforce_secure_checkout').single();
+ if(error||!updated)throw error||Error('Settings not saved');
+ exists=true;savedEnforcement=updated.enforce_secure_checkout;
+ if(current())q('sec-status').textContent='Security settings saved.';
  }catch(err){if(current())q('sec-status').textContent='Save failed: '+err.message;}finally{button.disabled=false;}
  };
  }catch(err){if(current())q('sec-status').textContent='Load failed: '+err.message;}
