@@ -925,9 +925,16 @@
         items:cart.map(i=>({id:i.id,quantity:i.quantity,...(i.size ? {size:i.size} : {})})),
         total:bill().total};
       const signature=JSON.stringify(payload);
+      const pendingKey='nosh-pending-order:'+window.NOSH_ACTIVE_RESTAURANT?.id;
       if(signature!==pendingSignature || !pendingOrder) {
+        let saved=null;
+        try{saved=JSON.parse(sessionStorage.getItem(pendingKey)||'null');}catch{}
+        const uuid=v=>typeof v==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
+        const digest=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(signature))),b=>b.toString(16).padStart(2,'0')).join('');
+        if(placingOrder)return;
         pendingSignature=signature;
-        pendingOrder={id:crypto.randomUUID(),token:crypto.randomUUID(),...payload};
+        pendingOrder={id:saved?.digest===digest&&uuid(saved.id)&&uuid(saved.token)?saved.id:crypto.randomUUID(),token:saved?.digest===digest&&uuid(saved.id)&&uuid(saved.token)?saved.token:crypto.randomUUID(),...payload};
+        try{sessionStorage.setItem(pendingKey,JSON.stringify({digest,id:pendingOrder.id,token:pendingOrder.token}));}catch{}
       }
       const order=pendingOrder;
       if(checkoutSecure===null){try{await refreshCheckoutMode();void prepareVerification();}catch(err){alert(err.message);}return;}
@@ -973,7 +980,7 @@ if(securePilot()){
           'Order '+order.id+' · Table '+String(table).padStart(2,'0')+' · '+money(receipt.total)+' · '+payment+' at Counter';
         document.getElementById('order-confirm-modal').classList.remove('hidden');
         document.getElementById('order-form').reset();initializeTables();
-        pendingOrder=null;pendingSignature='';
+        pendingOrder=null;pendingSignature='';try{sessionStorage.removeItem(pendingKey);}catch{}
       } catch(error) {
         if(String(error.message).includes('SECURE_CHECKOUT_REQUIRED')){checkoutSecure=true;alert('Security settings changed. Please verify and retry.');}
         else if (String(error.message).includes('Restaurant ordering is temporarily unavailable')) {
