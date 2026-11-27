@@ -608,7 +608,7 @@
       const visible=menuItems.filter(i=>i.available);
       const filtered=currentCategory === "All Items" ? visible : visible.filter(i=>i.category===currentCategory);
 
-      container.innerHTML = filtered.map(item => {
+      container.innerHTML = filtered.map((item,index) => {
         const sizes = Object.keys(sizeLabels).filter(size => item.sizes?.[size]);
         const size = sizes.includes(selectedSizes.get(item.id)) ? selectedSizes.get(item.id) : sizes[0];
         if (size) selectedSizes.set(item.id, size);
@@ -617,7 +617,7 @@
         return `
         <div data-dish-card class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden hover:border-slate-700 transition flex flex-col gap-3 p-3 sm:flex-row sm:gap-4">
           <div class="relative h-44 w-full shrink-0 overflow-hidden rounded-xl bg-slate-800 sm:h-auto sm:w-2/5 sm:aspect-square sm:self-center">
-            <img src="${esc(mediaUrl(item,'image'))}" alt="${esc(item.title)}" class="absolute inset-0 w-full h-full object-cover object-center" loading="lazy" decoding="async" />
+            <img src="${esc(mediaUrl(item,'image'))}" alt="${esc(item.title)}" class="absolute inset-0 w-full h-full object-cover object-center" loading="${index<2 ? 'eager' : 'lazy'}" fetchpriority="${index===0 ? 'high' : 'auto'}" decoding="async" />
           </div>
           <div class="flex min-w-0 flex-1 flex-col justify-between gap-3 px-1 pb-1 sm:py-1">
             <div>
