@@ -283,6 +283,7 @@
           </div>
         </div>
 
+        <div id="table-pin-panel" class="hidden"><label for="table-pin" class="block text-xs font-semibold text-slate-300">Table PIN</label><input id="table-pin" type="password" inputmode="numeric" maxlength="4" autocomplete="off" class="w-full rounded-xl bg-slate-800 border border-slate-700 p-3 text-white" placeholder="4-digit PIN"><p class="text-xs text-slate-400">Ask your waiter for the table PIN.</p></div>
         <div id="secure-verification" class="hidden"><div id="turnstile-widget"></div><p id="turnstile-status" role="status" class="text-slate-400 mt-1"></p></div>
         <div class="pt-3 border-t border-slate-800 flex items-center justify-between">
           <div>
@@ -836,14 +837,17 @@
       }, 300);
     }
 
-    let checkoutSecure=null;
+    let checkoutSecure=null, checkoutPinRequired=false;
     const securePilot=()=>checkoutSecure===true;
     async function refreshCheckoutMode(){
       const id=window.NOSH_ACTIVE_RESTAURANT?.id;
       if(!id)throw Error('Restaurant not loaded.');
-      const {data,error}=await menuDb.rpc('get_checkout_security_mode',{p_restaurant_id:id});
+      const [{data,error},pinMode]=await Promise.all([menuDb.rpc('get_checkout_security_mode',{p_restaurant_id:id}),menuDb.rpc('get_table_pin_required',{p_restaurant_id:id})]);
+      if(pinMode.error||typeof pinMode.data!=='boolean')throw Error('Table security settings unavailable. Please retry.');
+      checkoutPinRequired=pinMode.data;
+      document.getElementById('table-pin-panel').classList.toggle('hidden',!checkoutPinRequired);
       if(error||typeof data!=='boolean')throw Error('Security settings unavailable. Please retry.');
-      checkoutSecure=data;
+      checkoutSecure=data||checkoutPinRequired;
     }
     let tsWidget=null, tsToken='', tsLoad=null, tsGeneration=0, memoryDevice=null;
     function deviceId(){
@@ -889,7 +893,8 @@
       if (!orderingAllowed() || cart.length === 0) return;
       toggleCartDrawer();
       document.getElementById('checkout-modal').classList.remove('hidden');
-      checkoutSecure=null;
+      checkoutSecure=null;checkoutPinRequired=false;
+      document.getElementById("table-pin").value="";document.getElementById("table-pin-panel").classList.add("hidden");
       const panel=document.getElementById('secure-verification');
       panel.classList.remove('hidden');
       document.getElementById('turnstile-status').textContent='Checking security settings…';
@@ -920,6 +925,8 @@
       }
       const order=pendingOrder;
       if(checkoutSecure===null){try{await refreshCheckoutMode();void prepareVerification();}catch(err){alert(err.message);}return;}
+      const tablePin=document.getElementById("table-pin").value.trim();
+      if(checkoutPinRequired&&!/^[0-9]{4}$/.test(tablePin))return alert("Please enter the 4-digit table PIN.");
       if(securePilot()&&!tsToken){if(tsWidget===null)void prepareVerification();else try{window.turnstile.reset(tsWidget);}catch{} return alert('Please complete security verification, then place your order.');}
       placingOrder=true;
       const button=e.target.querySelector('button[type="submit"]');
@@ -946,8 +953,8 @@ const args={
 let receipt,error;
 if(securePilot()){
   const token=tsToken;tsToken='';
-  const result=await menuDb.functions.invoke('secure-order',{body:{...args,p_device_id:deviceId(),turnstile_token:token}});
-  if(result.error){let code='';try{code=(await result.error.context.json()).error;}catch{};throw new Error(({ORDER_RATE_LIMIT:'Too many orders. Please wait before trying again.',VERIFICATION_FAILED:'Security verification failed. Please try again.',VERIFICATION_REQUIRED:'Please verify again.',SECURITY_UNAVAILABLE:'Security service temporarily unavailable.',ORDER_REJECTED:'Order rejected. Please check your basket and details.'})[code]||'Secure checkout unavailable. Please try again.');}
+  const result=await menuDb.functions.invoke('secure-order',{body:{...args,p_device_id:deviceId(),p_pin:checkoutPinRequired?tablePin:null,turnstile_token:token}});
+  if(result.error){let code='';try{code=(await result.error.context.json()).error;}catch{};throw new Error(({TABLE_PIN_REQUIRED:'Ask your waiter for the table PIN.',TABLE_PIN_INVALID:'Incorrect table PIN. Please check with your waiter.',TABLE_SESSION_UNAVAILABLE:'Table session closed or expired. Ask your waiter to open it.',TABLE_PIN_RATE_LIMIT:'Too many PIN attempts. Please wait five minutes.',ORDER_RATE_LIMIT:'Too many orders. Please wait before trying again.',VERIFICATION_FAILED:'Security verification failed. Please try again.',VERIFICATION_REQUIRED:'Please verify again.',SECURITY_UNAVAILABLE:'Security service temporarily unavailable.',ORDER_REJECTED:'Order rejected. Please check your basket and details.'})[code]||'Secure checkout unavailable. Please try again.');}
   receipt=result.data?.receipt;if(!receipt||receipt.id!==order.id)throw new Error('Order receipt unavailable. Please retry.');
 }else{({data:receipt,error}=await menuDb.rpc('place_restaurant_order',args));}
 
