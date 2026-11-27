@@ -843,7 +843,7 @@
       if(!id)throw Error('Restaurant not loaded.');
       const {data,error}=await menuDb.rpc('get_checkout_security_mode',{p_restaurant_id:id});
       if(error||typeof data!=='boolean')throw Error('Security settings unavailable. Please retry.');
-      checkoutSecure=data||id==='f579dcfe-a29a-449f-b409-c9a5a01ecb14';
+      checkoutSecure=data;
     }
     let tsWidget=null, tsToken='', tsLoad=null, tsGeneration=0, memoryDevice=null;
     function deviceId(){
