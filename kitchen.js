@@ -170,6 +170,28 @@ async function recoverKitchen(){
     }
   }finally{recovering=false;}
 }
+let brandingChecked=0, brandingBusy=null;
+function clearKitchenBranding(){
+  brandingChecked=0;brandingBusy=null;
+  el('kitchen-name').textContent='Live Kitchen Display System';
+  const logo=el('kitchen-logo');logo.hidden=true;logo.removeAttribute('src');
+  document.title='Live Kitchen Display System (KDS)';
+}
+async function refreshKitchenBranding(){
+  if(!signedIn||!kitchenRestaurantId||brandingBusy||Date.now()-brandingChecked<15000)return;
+  const epoch=generation,rid=kitchenRestaurantId,ticket={};brandingBusy=ticket;
+  try{
+    const {data,error}=await db.from('restaurants').select('name,logo_url').eq('id',rid).maybeSingle().abortSignal(AbortSignal.timeout(8000));
+    if(epoch!==generation||rid!==kitchenRestaurantId||error||!data)return;
+    const name=data.name||'Restaurant';el('kitchen-name').textContent=name;
+    document.title=name+' | Kitchen';
+    const logo=el('kitchen-logo');let url='';
+    try{const u=new URL(data.logo_url);if(u.protocol==='https:')url=u.href;}catch{}
+    if(url){if(logo.getAttribute('src')!==url){logo.hidden=true;logo.onload=()=>{if(epoch===generation&&logo.getAttribute('src')===url)logo.hidden=false;};logo.onerror=()=>{logo.hidden=true;};logo.src=url;}}
+    else{logo.hidden=true;logo.removeAttribute('src');}
+    brandingChecked=Date.now();
+  }catch{}finally{if(brandingBusy===ticket)brandingBusy=null;}
+}
 let accessCheck=null, forcedReason='', revoking=false;
 async function revokeKitchen(reason){
   if(revoking)return;
@@ -194,6 +216,7 @@ async function checkKitchenAccess(){
       if(epoch!==generation)return false;
       if(error)throw error;
       if(!data||data.is_active!==true||data.restaurant_id!==restaurant){await revokeKitchen('Kitchen access disabled or changed. Contact your administrator.');return false;}
+      void refreshKitchenBranding();
       return true;
     }catch(e){if(epoch===generation)pauseKitchen();return false;}
   })();
@@ -205,6 +228,7 @@ async function sessionChanged(session){
   if(session && signedIn && currentKitchenUser===session.user.id)return;
   currentKitchenUser=session?.user.id||null;
   const epoch=++generation;
+  clearKitchenBranding();
   resetTables();
   signedIn=false;paused=false;networkEpoch++;updateControls();
   soundEnabled=false;pendingKnown=false;stopAlarm();syncAlarm();
@@ -221,7 +245,7 @@ async function sessionChanged(session){
   if(data.is_active!==true){await revokeKitchen('Kitchen account disabled. Contact your administrator.');return;}
   if(!data.restaurant_id){await revokeKitchen('No restaurant assigned to this kitchen account.');return;}
   kitchenRestaurantId=data.restaurant_id;
-  signedIn=true;updateControls();void loadTables();syncAlarm();message('Connecting live orders…');
+  signedIn=true;updateControls();void refreshKitchenBranding();void loadTables();syncAlarm();message('Connecting live orders…');
   channel=db.channel('kitchen-orders').on('postgres_changes',
     {event:'*',schema:'public',table:'orders',filter:'restaurant_id=eq.'+kitchenRestaurantId},()=>{refreshOrders().catch(e=>message(e.message));})
     .subscribe(status=>{
