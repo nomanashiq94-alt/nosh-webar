@@ -150,7 +150,20 @@ async function refreshRestaurants() {
     settings.addEventListener('click', () => openSettings(r));
     const copy = document.createElement('button'); copy.type='button'; copy.textContent='Copy menu link'; copy.onclick=async()=>{const url=new URL('./',location.href);url.searchParams.set('restaurant',r.slug);try{await navigator.clipboard.writeText(url.href);message('Menu link copied.');}catch{message(url.href);}};
     const security=document.createElement('button');security.type='button';security.textContent='Order security';security.onclick=()=>openOrderSecurity(r);
-    li.append(strong, small, edit, manage, subscription, payments, settings, security, copy); list.append(li);
+    const openMenu=document.createElement('a');openMenu.className='restaurant-edit';openMenu.textContent='Open menu';const menuUrl=new URL('./',location.href);menuUrl.searchParams.set('restaurant',r.slug);openMenu.href=menuUrl.href;openMenu.target='_blank';openMenu.rel='noopener noreferrer';
+    const links=document.createElement('button');links.type='button';links.className='restaurant-edit';links.textContent='Download QR links';links.onclick=async()=>{
+      try{
+        const {data,error}=await db.from('restaurants').select('table_count').eq('id',r.id).single();
+        if(error)throw error;
+        const count=Number(data.table_count);if(!Number.isInteger(count)||count<1||count>500)throw Error('Invalid table count');
+        const rows=['Table,Menu URL','All tables,'+menuUrl.href];
+        for(let i=1;i<=count;i++){const url=new URL(menuUrl);url.searchParams.set('table',String(i));rows.push(i+','+url.href);}
+        const objectUrl=URL.createObjectURL(new Blob([rows.join('\r\n')],{type:'text/csv;charset=utf-8'}));
+        const a=document.createElement('a');a.href=objectUrl;a.download='qr-links-'+r.slug.replace(/[^a-z0-9-]/gi,'-')+'.csv';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(objectUrl),1000);
+        message('QR destination links downloaded. Generate QR images from these URLs.');
+      }catch(e){message('Could not export QR links: '+e.message);}
+    };
+    li.append(strong, small, edit, manage, subscription, payments, settings, security, copy, openMenu, links); list.append(li);
   }
   filterRestaurants();
   await refreshBillingOverview(data || []);
@@ -845,7 +858,7 @@ async function owLoad(){if(owBusy||$('dashboard').hidden||$('owner-management').
 function owOpen(mode,s=null){if(owBusy)return;owClose();owMode=mode;owTarget=s;const create=mode==='create', edit=mode==='update_profile';$('ow-title').textContent=create?'Create owner account':(edit?'Edit owner name':'Reset password')+' — '+(s.username||s.display_name||'Owner account');for(const [key,visible] of [['restaurant',create],['user',create],['name',create||edit],['password',!edit]]){$('ow-'+key+'-label').hidden=!visible;$('ow-'+key).required=visible;}$('ow-restaurant').replaceChildren(owOption('','Select restaurant'),...owRestaurants.filter(r=>r.status==='active').map(r=>owOption(r.id,r.name)));$('ow-name').value=s?.display_name||'';$('ow-form').hidden=false;$('ow-form').scrollIntoView({behavior:'smooth',block:'nearest'});}
 async function owMutate(body){if(owBusy||$('dashboard').hidden)return;const session=epoch;owLock(true);$('ow-status').textContent='Saving…';let saved=false;try{const result=await owCall(body);if(session!==epoch)return;saved=true;owClose();$('ow-status').textContent=result.message;}catch(e){if(session===epoch)$('ow-status').textContent='Request not confirmed: '+e.message+' — refresh before retrying.';}finally{$('ow-password').value='';owLock(false);}if(saved&&session===epoch){await owLoad();if(session===epoch)$('ow-status').textContent='Saved. '+$('ow-status').textContent;}}
 $('ow-form').onsubmit=e=>{e.preventDefault();if(!owMode||owBusy)return;const body={action:owMode};if(owTarget)body.user_id=owTarget.user_id;if(owMode==='create'){body.restaurant_id=$('ow-restaurant').value;body.username=$('ow-user').value.trim().toLowerCase();}if(owMode!=='reset_password')body.display_name=$('ow-name').value.trim();if(owMode!=='update_profile'){body.password=$('ow-password').value;if(body.password.length<12||new TextEncoder().encode(body.password).length>72){$('ow-status').textContent='Password must be 12 characters minimum and 72 bytes maximum.';return;}}owMutate(body);};
-$('ow-create').onclick=()=>owOpen('create');$('ow-cancel').onclick=owClose;$('ow-refresh').onclick=()=>{owClose();owLoad();};$('ow-search').oninput=owRender;$('ow-filter').onchange=owRender;$('ow-state').onchange=owRender;$('ow-reveal').onclick=()=>{const p=$('ow-password'),show=p.type==='password';p.type=show?'text':'password';$('ow-reveal').textContent=show?'Hide password':'Show password';$('ow-reveal').setAttribute('aria-pressed',String(show));};$('ow-link').onclick=async()=>{const url=new URL('owner.html',location.href).href;try{await navigator.clipboard.writeText(url);$('ow-status').textContent='Planned owner portal link copied (not deployed yet).';}catch{$('ow-status').textContent=url;}};
+$('ow-create').onclick=()=>owOpen('create');$('ow-cancel').onclick=owClose;$('ow-refresh').onclick=()=>{owClose();owLoad();};$('ow-search').oninput=owRender;$('ow-filter').onchange=owRender;$('ow-state').onchange=owRender;$('ow-reveal').onclick=()=>{const p=$('ow-password'),show=p.type==='password';p.type=show?'text':'password';$('ow-reveal').textContent=show?'Hide password':'Show password';$('ow-reveal').setAttribute('aria-pressed',String(show));};$('ow-link').onclick=async()=>{const url=new URL('owner.html',location.href).href;try{await navigator.clipboard.writeText(url);$('ow-status').textContent='Shared owner portal login link copied.';}catch{$('ow-status').textContent=url;}};
 
 
 
