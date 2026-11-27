@@ -797,7 +797,7 @@
       if (currentLoad.signal.aborted) return;
       viewer.scale = '1 1 1';
       const listener = {once:true, signal:arLoad.signal};
-      const onLoad = () => calibrateViewer(viewer,item,status);
+      const onLoad = () => calibrateViewer(viewer,item,status,currentLoad.signal);
       if (model && viewer.loaded && viewer.getAttribute('src') === model) onLoad();
       else if (model) viewer.addEventListener('load', onLoad, listener);
       viewer.addEventListener('error', () => {
@@ -826,11 +826,13 @@
     }
 
     // Model Viewer dimensions are in metres. Apply uniform scaling to target physical size.
-    async function calibrateViewer(viewer,item,output) {
+    async function calibrateViewer(viewer,item,output,signal) {
+      if(signal?.aborted)return;
       const width=Number(item.widthCm);
       if(!Number.isFinite(width)||width<=0){viewer.scale='1 1 1';if(output)output.textContent='No size calibration set';return;}
       try {
         await viewer.updateComplete;
+        if(signal?.aborted)return;
         const d=viewer.getDimensions();
         const axis=item.widthAxis||'maxXZ';
         const dimension=axis==='x'?d.x:axis==='y'?d.y:axis==='z'?d.z:Math.max(d.x,d.z);
@@ -838,7 +840,7 @@
         const factor=(width/100)/dimension;
         viewer.scale=`${factor} ${factor} ${factor}`;
         if(output)output.textContent=`GLB measured ${(dimension*100).toFixed(1)} cm → target ${width} cm (scale ×${factor.toFixed(3)}). Check AR on device.`;
-      } catch(e){viewer.scale='1 1 1';if(output)output.textContent='Could not measure GLB: '+e.message;}
+      } catch(e){if(signal?.aborted)return;viewer.scale='1 1 1';if(output)output.textContent='Could not measure GLB: '+e.message;}
     }
     function closeArModal() {
       const modal = document.getElementById('ar-modal');
@@ -846,7 +848,9 @@
       arLoad?.abort();
       arCloseTimer = setTimeout(() => {
         modal.classList.add('hidden');
-        document.getElementById('food-viewer').setAttribute('src', '');
+        const viewer=document.getElementById('food-viewer');
+        viewer.removeAttribute('src');
+        viewer.removeAttribute('ios-src');
       }, 300);
     }
 
