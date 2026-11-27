@@ -6,7 +6,7 @@
 3. Publish menu items, prices, sizes, photos and optional calibrated GLB/USDZ assets.
 4. Create individual kitchen and optional owner accounts. Share credentials securely; never share Super Admin access.
 5. Configure subscription, record payment and agree expiry and grace period. Use monitor mode until enforcement is agreed.
-6. Copy general menu link or export table QR destination CSV. Generate and scan QR images before printing. Keep PIN disabled until live security acceptance.
+6. Copy the single restaurant menu link. Generate one QR image for all tables and scan it before printing. Customers select their table at checkout. Keep PIN disabled until live security acceptance.
 7. Test menu, ordering, kitchen alerts, statuses, owner analytics, mobile AR and cross-restaurant isolation.
 8. Confirm client acceptance and hand over QR stands, kitchen and owner links, support contacts and billing terms.
 
