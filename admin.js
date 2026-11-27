@@ -247,7 +247,7 @@ async function saveItem(e){
     for(const type of ['image','model','usdz']){
       const file=document.getElementById('upload-'+type).files[0];if(!file)continue;
       const valid=type==='image'?['image/jpeg','image/png','image/webp'].includes(file.type):file.name.toLowerCase().endsWith('.'+(type==='model'?'glb':'usdz'));
-      if(!valid||file.size>(type==='image'?15:50)*1024*1024)throw Error('Invalid or oversized '+type+' file.');
+      if(!valid||file.size===0||file.size>(type==='image'?5:50)*1024*1024)throw Error('Invalid or oversized '+type+' file.');
       const ext=type==='image'?({'image/jpeg':'jpg','image/png':'png','image/webp':'webp'}[file.type]):type==='model'?'glb':'usdz';
       const path=restaurantId+'/'+id+'/'+crypto.randomUUID()+'.'+ext;
       document.getElementById('upload-status').textContent='Uploading '+type+'…';
