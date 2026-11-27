@@ -1,5 +1,7 @@
 let menuDb = null, menuRequest = 0;
 let activeRestaurantId = null;
+let lastMenuSignature = null;
+let reloadTimer;
 let statusRequest = 0;
 function menuMessage(text) { document.getElementById('menu-connection').textContent = text; }
 async function refreshOrderingStatus() {
@@ -36,7 +38,10 @@ async function loadMenu() {
   await status;
   if (ticket !== menuRequest) return;
   if (error) { menuMessage('Menu unavailable: '+error.message); return; }
+  const signature = JSON.stringify(data);
+  if (menuReady && signature === lastMenuSignature) return;
   menuItems = data.map(i => ({...i,price:Number(i.price)}));
+  lastMenuSignature = signature;
   menuReady = true; paintMenu();
 }
 async function startCloud() {
@@ -49,13 +54,13 @@ async function startCloud() {
     if (!restaurant) throw Error('Restaurant not found or inactive');
     activeRestaurantId = restaurant.id;
     window.NOSH_ACTIVE_RESTAURANT = restaurant;
-    const reload = () => loadMenu().catch(e => menuMessage(e.message));
+    const reload = () => { clearTimeout(reloadTimer); reloadTimer=setTimeout(() => { if(navigator.onLine) loadMenu().catch(e => menuMessage(e.message)); },150); };
     menuDb.channel('public-menu-'+activeRestaurantId).on('postgres_changes',{event:'*',schema:'public',table:'menu_items',filter:'restaurant_id=eq.'+activeRestaurantId},reload).subscribe(status => {
       if (status === 'SUBSCRIBED') { menuMessage('Menu connected'); reload(); }
       else if (['CHANNEL_ERROR','TIMED_OUT','CLOSED'].includes(status)) menuMessage('Live menu reconnecting');
     });
     await loadMenu();
-    setInterval(reload,15000);
+    setInterval(()=>{if(!document.hidden) reload();},15000);
     window.addEventListener('online',reload);
     window.addEventListener('offline',()=>{ ++statusRequest; setOrderingState('checking'); menuMessage('Offline · reconnect before ordering'); });
     document.addEventListener('visibilitychange',()=>{if(!document.hidden) reload();});
