@@ -1016,9 +1016,8 @@ if(securePilot()){
     function initializeTables(){
       const el=document.getElementById('cust-table'), old=el.value, count=restaurantSettings?.table_count||0;
       el.innerHTML='<option value="">Select table</option>'+Array.from({length:count},(_,i)=>`<option value="${i+1}">Table ${String(i+1).padStart(2,'0')}</option>`).join('');
-      const t=Number(new URLSearchParams(location.search).get('table'));
-      if(Number.isInteger(t)&&t>=1&&t<=count){el.value=String(t);el.disabled=true;}
-      else {el.disabled=false;if(Number(old)>=1&&Number(old)<=count)el.value=old;}
+      el.disabled=false;
+      if(Number(old)>=1&&Number(old)<=count)el.value=old;
     }
     function showToast(msg) {
       const toast = document.getElementById('toast-notification');
