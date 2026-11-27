@@ -133,6 +133,7 @@ el('kitchen-list').addEventListener('change',async event=>{
 let currentKitchenUser=null;
 let paused=false, recovering=false, networkEpoch=0;
 function updateControls(){
+  if(el("table-grid"))renderTables();
   el('archive-finished').disabled=paused||!signedIn;
   el('kitchen-list').querySelectorAll('select').forEach(x=>x.disabled=paused||!signedIn);
   el('sound-test').disabled=paused||!signedIn;
@@ -193,6 +194,7 @@ async function sessionChanged(session){
   if(session && signedIn && currentKitchenUser===session.user.id)return;
   currentKitchenUser=session?.user.id||null;
   const epoch=++generation;
+  resetTables();
   signedIn=false;paused=false;networkEpoch++;updateControls();
   soundEnabled=false;pendingKnown=false;stopAlarm();syncAlarm();
   kitchenRestaurantId = null;
@@ -208,7 +210,7 @@ async function sessionChanged(session){
   if(data.is_active!==true){await revokeKitchen('Kitchen account disabled. Contact your administrator.');return;}
   if(!data.restaurant_id){await revokeKitchen('No restaurant assigned to this kitchen account.');return;}
   kitchenRestaurantId=data.restaurant_id;
-  signedIn=true;updateControls();syncAlarm();message('Connecting live orders…');
+  signedIn=true;updateControls();void loadTables();syncAlarm();message('Connecting live orders…');
   channel=db.channel('kitchen-orders').on('postgres_changes',
     {event:'*',schema:'public',table:'orders',filter:'restaurant_id=eq.'+kitchenRestaurantId},()=>{refreshOrders().catch(e=>message(e.message));})
     .subscribe(status=>{
@@ -239,6 +241,60 @@ el('logout').onclick=async()=>{
   const {error}=await db.auth.signOut();
   if(error)message('Sign out failed: '+error.message);
 };
+
+let tableEnabled=false, tableBusy=false, tableTicket=0, tableRows=[], tablePins=new Map();
+function resetTables(){
+ ++tableTicket;tableEnabled=false;tableBusy=false;tableRows=[];tablePins.clear();
+ if(!el('tab-tables'))return;
+ el('tab-tables').hidden=true;el('tab-tables').setAttribute('aria-expanded','false');el('table-panel').hidden=true;el('table-grid').replaceChildren();el('table-status').textContent='';
+}
+function renderTables(){
+ if(!el('table-grid'))return;
+ const grid=el('table-grid');grid.replaceChildren();
+ const blocked=paused||!signedIn||!navigator.onLine||tableBusy;
+ for(const t of tableRows){
+ const card=document.createElement('div');card.className='rounded-xl border border-slate-700 bg-slate-950 p-3 space-y-2';
+ const heading=document.createElement('h3');heading.className='font-bold';heading.textContent='Table '+String(t.table_number).padStart(2,'0');card.append(heading);
+ const status=document.createElement('p');status.className='text-sm text-slate-300';status.textContent=t.session_id?(t.expires_at?'Open until '+new Date(t.expires_at).toLocaleTimeString():'Open until closed'):'Available';card.append(status);
+ const pin=document.createElement('p');pin.className='text-xl font-bold text-amber-400';pin.textContent=t.session_id?(tablePins.get(t.session_id)||'PIN not retained'):'—';card.append(pin);
+ for(const action of t.session_id?['regenerate','close']:['open']){
+ const button=document.createElement('button');button.type='button';button.className='bg-slate-700 rounded-lg px-3 py-2 mr-2 text-sm';button.textContent=({open:'Open table',close:'Close table',regenerate:'Regenerate PIN'})[action];button.disabled=blocked;button.onclick=()=>changeTable(t,action);card.append(button);
+ }grid.append(card);
+ }
+ el('table-refresh').disabled=blocked;
+}
+async function loadTables(){
+ if(!el('tab-tables')||!signedIn||paused||!navigator.onLine||tableBusy)return;
+ const epoch=generation,ticket=++tableTicket,rid=kitchenRestaurantId;
+ try{
+ const {data,error}=await db.rpc('kitchen_table_management',{p_restaurant_id:rid,p_action:'list'}).abortSignal(AbortSignal.timeout(8000));
+ if(epoch!==generation||ticket!==tableTicket)return;
+ if(error)throw error;
+ if(!data?.enabled){resetTables();return;}
+ tableEnabled=true;tableRows=Array.isArray(data.tables)?data.tables:[];
+ const ids=new Set(tableRows.map(t=>t.session_id));for(const id of tablePins.keys())if(!ids.has(id))tablePins.delete(id);
+ el('tab-tables').hidden=false;
+ el('table-status').textContent=tableRows.filter(t=>t.session_id).length+' open / '+tableRows.length+' tables';
+ renderTables();
+ }catch(e){if(epoch===generation&&ticket===tableTicket){resetTables();}}
+}
+async function changeTable(t,action){
+ if(!tableEnabled||tableBusy||paused||!signedIn||!navigator.onLine)return;
+ if(action!=='open'&&!confirm(action==='close'?'Close this table session?':'Replace PIN and invalidate the previous session?'))return;
+ const epoch=generation,rid=kitchenRestaurantId;tableBusy=true;++tableTicket;renderTables();
+ try{
+ const {data,error}=await db.rpc('kitchen_table_management',{p_restaurant_id:rid,p_action:action,p_table:t.table_number,p_session_id:t.session_id||null}).abortSignal(AbortSignal.timeout(8000));
+ if(epoch!==generation)return;if(error)throw error;
+ if(data?.pin&&data?.session_id)tablePins.set(data.session_id,data.pin);
+ }catch(e){if(epoch===generation)alert('Table action failed or response lost. Refresh before retrying: '+e.message);}
+ finally{if(epoch===generation){tableBusy=false;await loadTables();}}
+}
+if(el('tab-tables')){
+ el('tab-tables').onclick=()=>{if(!tableEnabled||!signedIn)return;const p=el('table-panel');p.hidden=!p.hidden;el('tab-tables').setAttribute('aria-expanded',String(!p.hidden));if(!p.hidden)void loadTables();};
+ el('table-refresh').onclick=()=>void loadTables();
+ setInterval(()=>void loadTables(),15000);
+}
+
 try{
   db=window.createNoshClient(true);
   db.auth.onAuthStateChange((event,session)=>{
