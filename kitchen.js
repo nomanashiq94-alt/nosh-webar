@@ -172,6 +172,8 @@ async function recoverKitchen(){
 }
 let brandingChecked=0, brandingBusy=null;
 function clearKitchenBranding(){
+  document.body.classList.remove('restaurant-themed');
+  for(const key of ['primary','secondary','bg','card','text','price','button'])document.body.style.removeProperty('--restaurant-'+key);
   brandingChecked=0;brandingBusy=null;
   el('kitchen-name').textContent='Live Kitchen Display System';
   const logo=el('kitchen-logo');logo.hidden=true;logo.removeAttribute('src');
@@ -181,8 +183,14 @@ async function refreshKitchenBranding(){
   if(!signedIn||!kitchenRestaurantId||brandingBusy||Date.now()-brandingChecked<15000)return;
   const epoch=generation,rid=kitchenRestaurantId,ticket={};brandingBusy=ticket;
   try{
-    const {data,error}=await db.from('restaurants').select('name,logo_url').eq('id',rid).maybeSingle().abortSignal(AbortSignal.timeout(8000));
+    const {data,error}=await db.from('restaurants').select('name,logo_url,primary_color,secondary_color,background_color,card_color,text_color,price_color,button_text_color').eq('id',rid).maybeSingle().abortSignal(AbortSignal.timeout(8000));
     if(epoch!==generation||rid!==kitchenRestaurantId||error||!data)return;
+    const palette={primary:'primary_color',secondary:'secondary_color',bg:'background_color',card:'card_color',text:'text_color',price:'price_color',button:'button_text_color'};
+    for(const [key,field] of Object.entries(palette)){
+      const value=data[field];if(/^#[0-9a-f]{6}$/i.test(value||''))document.body.style.setProperty('--restaurant-'+key,value);
+      else document.body.style.removeProperty('--restaurant-'+key);
+    }
+    document.body.classList.add('restaurant-themed');
     const name=data.name||'Restaurant';el('kitchen-name').textContent=name;
     document.title=name+' | Kitchen';
     const logo=el('kitchen-logo');let url='';
