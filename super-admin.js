@@ -1104,7 +1104,7 @@ function openRestaurantQR(restaurant,url){
  ctx.font='bold 84px sans-serif';ctx.fillText('SCAN TO ORDER',600,330,1060);
  ctx.fillStyle='#ffffff';ctx.fillRect(100,420,1000,1000);ctx.imageSmoothingEnabled=false;ctx.drawImage(qr,200,520,800,800);
  ctx.fillStyle='#ffffff';ctx.font='36px sans-serif';ctx.fillText('Explore menu • View in 3D • Order',600,1490,1080);
- ctx.fillStyle='#94a3b8';ctx.font='28px sans-serif';ctx.fillText('Powered by Nosh WebAR',600,1550);
+ ctx.fillStyle='#94a3b8';ctx.font='28px sans-serif';ctx.fillText('Powered by ARMenu',600,1550);
  download.disabled=false;print.disabled=false;status.textContent='Scan-test before printing. Same QR for every table.';
  download.onclick=()=>{const a=document.createElement('a');a.download=restaurant.slug+'-qr-card.png';a.href=canvas.toDataURL('image/png');a.click();};
  print.onclick=()=>{const w=window.open('','_blank');if(!w){status.textContent='Allow pop-ups or download the PNG to print.';return;}const img=w.document.createElement('img');img.style.cssText='display:block;width:90mm;height:auto;margin:10mm auto';img.onload=()=>w.print();w.document.body.append(img);img.src=canvas.toDataURL('image/png');};
