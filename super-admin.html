@@ -782,7 +782,7 @@
 
 .an-chart{display:grid;gap:10px;margin:16px 0}.an-chart svg{max-width:180px;width:100%;display:block;margin:auto}.an-chart .an-track{height:12px;background:var(--line-strong);border-radius:8px;overflow:hidden}.an-chart .an-fill{height:100%;background:#38bdf8;border-radius:8px}#an-breakdown .an-track{height:10px;background:var(--line-strong);border-radius:8px;overflow:hidden;margin:6px 0 16px}#an-breakdown .an-fill{height:100%;border-radius:8px}#an-stats strong{overflow-wrap:anywhere}#analytics-section label{margin:0}#analytics-section .row{align-items:end}
 .an-tabs button[aria-pressed="false"]{background:var(--bg);color:var(--ink);border:1px solid var(--line-strong)}
-</style>
+ .theme-library-card{border:1px solid var(--line-strong);padding:10px;border-radius:10px;min-width:0}.theme-library-card button{margin:4px 0;width:100%}#theme-preview.desktop-preview{max-width:100%;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}#theme-preview.desktop-preview header,#theme-preview.desktop-preview > .theme-demo-action,#theme-preview.desktop-preview > .hint{grid-column:1/-1} </style>
 </head>
 <body>
   <main>
@@ -966,9 +966,9 @@
         <p id="selected-restaurant"></p>
         <form id="branding-form">
           <label>Restaurant name <input id="brand-name" maxlength="120" required="" /></label>
-          <h3>Ready-made themes</h3><div id="theme-presets" class="theme-grid"></div>
+          <h3>Ready-made themes</h3><div id="theme-presets" class="theme-grid"></div><h3>Custom theme library</h3><div id="custom-theme-list" class="theme-grid"></div><label>Theme name <input id="custom-theme-name" maxlength="80" placeholder="My restaurant theme"></label><button type="button" id="custom-theme-save">Save current colors as new theme</button><p id="custom-theme-status" role="status"></p>
           <div class="theme-layout"><div><h3>Customize colors</h3><div id="theme-controls"></div><button type="button" id="theme-reset">Restore saved colors</button><button type="button" id="theme-default">Use original design</button><p class="hint" id="theme-warning" role="status"></p></div>
-          <div><h3>Live menu preview</h3><div id="theme-preview"><header id="theme-header"><img id="theme-logo" alt="" hidden><strong id="theme-name"></strong><small>Scan · Explore · Order</small></header><div class="theme-demo-card"><strong>Signature Pizza</strong><p>Freshly prepared · Sample item</p><b class="theme-demo-price">Rs. 999</b><div class="theme-demo-action">+ Add to cart</div></div><div class="theme-demo-card"><strong>Chicken Burger</strong><p>Sample item</p><b class="theme-demo-price">Rs. 599</b><div class="theme-demo-action">View in 3D / AR</div></div><div class="theme-demo-action">View cart · Rs. 0</div></div><p class="hint">Illustrative preview; actual menu may differ. Refresh customer menu after saving.</p></div></div>
+          <div><h3>Live menu preview</h3><button type="button" id="preview-mobile">Mobile</button> <button type="button" id="preview-desktop">Desktop</button><div id="theme-preview"><header id="theme-header"><img id="theme-logo" alt="" hidden><strong id="theme-name"></strong><small>Scan · Explore · Order</small></header><div class="theme-demo-card"><strong>Signature Pizza</strong><p>Freshly prepared · Sample item</p><b class="theme-demo-price">Rs. 999</b><div class="theme-demo-action">+ Add to cart</div></div><div class="theme-demo-card"><strong>Chicken Burger</strong><p>Sample item</p><b class="theme-demo-price">Rs. 599</b><div class="theme-demo-action">View in 3D / AR</div></div><div class="theme-demo-action">View cart · Rs. 0</div></div><p class="hint">Illustrative preview; actual menu may differ. Refresh customer menu after saving.</p></div></div>
           <label>Logo URL (HTTPS) <input id="brand-logo" placeholder="https://example.com/logo.png" style="width:min(100%,520px)" type="url" /></label>
           <p class="hint">Optional: paste an HTTPS image URL, or upload a logo directly below.</p>
           <label>Upload logo (JPG, PNG or WebP, max 2 MB) <input accept="image/jpeg,image/png,image/webp" id="brand-logo-file" type="file" /></label>
