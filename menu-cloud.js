@@ -50,10 +50,10 @@ async function startCloud() {
   try {
     menuDb = window.createNoshClient();
     const slug = window.NOSH_RESTAURANT?.slug;
-    if (!slug) throw Error('Restaurant identification missing');
+    if (!slug) { window.NOSH_INVALID_RESTAURANT = true; window.dispatchEvent(new Event('nosh-restaurant-invalid')); return; }
     const {data:restaurant,error} = await menuDb.from('restaurants').select('id,name,slug,logo_url,primary_color,secondary_color,background_color,card_color,text_color,price_color,button_text_color,border_color,muted_text_color').eq('slug',slug).eq('status','active').maybeSingle();
     if (error) throw error;
-    if (!restaurant) throw Error('Restaurant not found or inactive');
+    if (!restaurant) { window.NOSH_INVALID_RESTAURANT = true; window.dispatchEvent(new Event('nosh-restaurant-invalid')); return; }
     activeRestaurantId = restaurant.id;
     window.NOSH_ACTIVE_RESTAURANT = restaurant;
     window.dispatchEvent(new Event('nosh-restaurant-resolved'));
