@@ -6,6 +6,9 @@ let db, channel, orders=[], generation=0, request=0, signedIn=false;
 let kitchenRestaurantId = null;
 let kitchenView = 'active';
 let historyOrders = [];
+let renderedOrderKey=null, liveRefreshTimer=null;
+function scheduleLiveRefresh(){clearTimeout(liveRefreshTimer);const epoch=generation;liveRefreshTimer=setTimeout(()=>{if(epoch===generation)refreshOrders().catch(e=>message(e.message));},100);}
+function renderKitchenIfChanged(){const key=JSON.stringify([kitchenView,kitchenView==='history'?historyOrders:orders]);if(key!==renderedOrderKey){renderKitchen();renderedOrderKey=key;}}
 const el=id=>document.getElementById(id);
 function finishKitchenStartup(){document.documentElement.removeAttribute('data-kitchen-startup');}
 const kitchenDisplayModes=['restaurant','light','dark'];let kitchenDisplay='dark';try{const saved=localStorage.getItem('nosh-kitchen-display-v2');if(kitchenDisplayModes.includes(saved))kitchenDisplay=saved}catch{}function applyKitchenDisplay(){document.body.dataset.display=kitchenDisplay;el('display-mode').value=kitchenDisplay;}el('display-mode').onchange=()=>{kitchenDisplay=el('display-mode').value;applyKitchenDisplay();try{localStorage.setItem('nosh-kitchen-display-v2',kitchenDisplay)}catch{}};applyKitchenDisplay();
@@ -60,6 +63,7 @@ el('sound-toggle').onclick=async()=>{if(soundEnabled){soundEnabled=false;syncAla
 el('sound-test').onclick=async()=>{if(await enableSound()){if(beepTimer===null)beep();}};
 function switchKitchenView(view){
   if(!['active','history'].includes(view))return;
+  if(kitchenView===view)return;
   kitchenView=view;
   el('tab-active').setAttribute('aria-selected',String(view==='active'));
   el('tab-history').setAttribute('aria-selected',String(view==='history'));
@@ -68,7 +72,7 @@ function switchKitchenView(view){
   el('tab-history').classList.toggle('bg-amber-500',view==='history');
   el('tab-history').classList.toggle('text-black',view==='history');
   el('archive-finished').classList.toggle('hidden',view==='history');
-  renderKitchen();updateControls();
+  renderKitchenIfChanged();updateControls();
   refreshOrders().catch(e=>message(e.message));
 }
 function renderKitchen(){
@@ -101,17 +105,16 @@ async function refreshOrders(recovery=false){
   const epoch=generation, ticket=++request;
   const view=kitchenView, restaurantId=kitchenRestaurantId;
   const query=archived=>db.from('orders').select('*').eq('restaurant_id',restaurantId).eq('archived',archived).order('createdAt',{ascending:false}).abortSignal(AbortSignal.timeout(8000));
-  const active=await query(false);
+  const [active,history]=await Promise.all([query(false),view==='history'?query(true):Promise.resolve(null)]);
   if(epoch!==generation || ticket!==request || view!==kitchenView)return;
   if(active.error){pauseKitchen();return false;}
   orders=active.data||[];pendingKnown=true;syncAlarm();
   if(view==='history'){
-    const history=await query(true);
     if(epoch!==generation || ticket!==request || view!==kitchenView)return;
     if(history.error){pauseKitchen();return false;}
     historyOrders=history.data||[];
   }
-  renderKitchen();updateControls();return true;
+  renderKitchenIfChanged();updateControls();return true;
 }
 async function changeOrderStatus(id,status){
   if(paused||!navigator.onLine||!signedIn||!kitchenRestaurantId||kitchenView!=='active'||statusUpdates.has(id))return;
@@ -119,13 +122,14 @@ async function changeOrderStatus(id,status){
   if(!order||order.archived||!allowedNext(order.status).includes(status)){renderKitchen();updateControls();return;}
   const expected=order.status, restaurantId=kitchenRestaurantId, epoch=generation;
   statusUpdates.add(id);
+  renderedOrderKey=null;
   try{
     const {data,error}=await db.from('orders').update({status}).eq('id',id).eq('restaurant_id',restaurantId).eq('status',expected).eq('archived',false).select('id');
     if(epoch!==generation)return;
     if(error||!data?.length)message('Status not saved: '+(error?.message||'Order changed by another staff member. Refreshing…'));
     await refreshOrders();
   }catch(error){if(epoch===generation){message('Status confirmation unavailable. Refreshing…');await refreshOrders();}}
-  finally{statusUpdates.delete(id);}
+  finally{statusUpdates.delete(id);if(epoch===generation)updateControls();}
 }
 async function clearOrders(){
   if(paused||!navigator.onLine||!signedIn || !kitchenRestaurantId || kitchenView!=='active')return;
@@ -146,9 +150,9 @@ el('kitchen-list').addEventListener('change',async event=>{
 let currentKitchenUser=null;
 let paused=false, recovering=false, networkEpoch=0;
 function updateControls(){
-  if(el("table-grid"))renderTables();
+  if(el('table-grid')&&!el('table-panel').hidden)renderTables();
   el('archive-finished').disabled=paused||!signedIn;
-  el('kitchen-list').querySelectorAll('select').forEach(x=>x.disabled=paused||!signedIn);
+  el('kitchen-list').querySelectorAll('select').forEach(x=>x.disabled=paused||!signedIn||statusUpdates.has(x.dataset.order));
   el('sound-test').disabled=paused||!signedIn;
   el('sound-toggle').disabled=paused||!signedIn;
 }
@@ -238,6 +242,7 @@ async function sessionChanged(session){
   if(session && signedIn && currentKitchenUser===session.user.id)return;
   currentKitchenUser=session?.user.id||null;
   const epoch=++generation;
+  clearTimeout(liveRefreshTimer);renderedOrderKey=null;statusUpdates.clear();
   clearKitchenBranding();
   resetTables();
   signedIn=false;paused=false;networkEpoch++;updateControls();
@@ -257,7 +262,7 @@ async function sessionChanged(session){
   kitchenRestaurantId=data.restaurant_id;
   signedIn=true;updateControls();void refreshKitchenBranding();void loadTables();syncAlarm();message('Connecting live orders…');
   channel=db.channel('kitchen-orders').on('postgres_changes',
-    {event:'*',schema:'public',table:'orders',filter:'restaurant_id=eq.'+kitchenRestaurantId},()=>{refreshOrders().catch(e=>message(e.message));})
+    {event:'*',schema:'public',table:'orders',filter:'restaurant_id=eq.'+kitchenRestaurantId},()=>{if(epoch===generation)scheduleLiveRefresh();})
     .subscribe(status=>{
       if(epoch!==generation)return;
       if(status==='SUBSCRIBED'){if(paused){recoverKitchen().catch(()=>pauseKitchen());return;}message('Live connected · auto refresh backup every 15 seconds');refreshOrders().catch(()=>pauseKitchen());}
