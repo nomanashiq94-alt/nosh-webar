@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Nosh WebAR Menu</title>
+  <title>Restaurant Menu | ARMenu</title>
+  <link rel="icon" id="restaurant-favicon" href="armenu-icon.svg" type="image/svg+xml">
   
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -59,7 +60,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase-config.js"></script>
 <script src="nosh-cloud.js"></script>
-<script src="restaurant-context.js"></script>
+<script src="restaurant-context.js?v=81-url"></script>
   <!-- Keep the customer UI hidden until the correct restaurant branding is ready. -->
   <style>
     #restaurant-loading-screen { position: fixed; inset: 0; z-index: 99999; display: flex; align-items: center; justify-content: center; background: #020617; color: #f8fafc; font-family: Inter, sans-serif; padding: 24px; }
@@ -467,7 +468,7 @@
           const img = new Image();
           img.alt = name + ' logo';
           img.className = 'w-full h-full object-contain';
-          img.onload=()=>{if(window.NOSH_ACTIVE_RESTAURANT?.id===restaurant.id)icon.replaceChildren(img);};
+          img.onload=()=>{if(window.NOSH_ACTIVE_RESTAURANT?.id===restaurant.id){icon.replaceChildren(img);const favicon=document.getElementById('restaurant-favicon');favicon.removeAttribute('type');favicon.href=logo;}};
           img.onerror=()=>{console.warn('Restaurant logo unavailable');};
           img.src=logo;
         }
@@ -497,6 +498,9 @@
           } finally { timer.busy = false; }
         };
         const timer = setInterval(attempt, 500);
+        const invalid = () => { clearInterval(timer); document.title='Invalid restaurant link | ARMenu'; const panel=document.querySelector('#restaurant-loading-screen .loading-panel'); if(panel) panel.innerHTML='<div class="loading-title">Invalid restaurant link</div><div class="loading-detail">Please scan the restaurant QR code or use a valid restaurant menu URL.</div>'; };
+        window.addEventListener('nosh-restaurant-invalid',invalid,{once:true});
+        if(window.NOSH_INVALID_RESTAURANT || !window.NOSH_RESTAURANT?.slug){invalid();return;}
         window.addEventListener("nosh-restaurant-resolved",attempt,{once:true});
         void attempt();
       });
@@ -1059,6 +1063,6 @@ if(securePilot()){
       startCloud();
     });
   </script>
-  <script src="menu-cloud.js?v=69-fast-start"></script>
+  <script src="menu-cloud.js?v=81-url"></script>
 </body>
 </html>
