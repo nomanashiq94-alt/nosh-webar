@@ -7,6 +7,7 @@ let kitchenRestaurantId = null;
 let kitchenView = 'active';
 let historyOrders = [];
 const el=id=>document.getElementById(id);
+function finishKitchenStartup(){document.documentElement.removeAttribute('data-kitchen-startup');}
 const kitchenDisplayModes=['restaurant','light','dark'];let kitchenDisplay='restaurant';try{const saved=localStorage.getItem('nosh-kitchen-display-v2');if(kitchenDisplayModes.includes(saved))kitchenDisplay=saved}catch{}function applyKitchenDisplay(){document.body.dataset.display=kitchenDisplay;el('display-mode').value=kitchenDisplay;}el('display-mode').onchange=()=>{kitchenDisplay=el('display-mode').value;applyKitchenDisplay();try{localStorage.setItem('nosh-kitchen-display-v2',kitchenDisplay)}catch{}};applyKitchenDisplay();
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money=v=>Number(v||0).toLocaleString('en-PK',{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -198,7 +199,7 @@ async function refreshKitchenBranding(){
     try{const u=new URL(data.logo_url);if(u.protocol==='https:')url=u.href;}catch{}
     if(url){if(logo.getAttribute('src')!==url){logo.hidden=true;logo.onload=()=>{if(epoch===generation&&logo.getAttribute('src')===url)logo.hidden=false;};logo.onerror=()=>{logo.hidden=true;};logo.src=url;}}
     else{logo.hidden=true;logo.removeAttribute('src');}
-    brandingChecked=Date.now();
+    brandingChecked=Date.now();finishKitchenStartup();
   }catch{}finally{if(brandingBusy===ticket)brandingBusy=null;}
 }
 let accessCheck=null, forcedReason='', revoking=false;
@@ -246,7 +247,7 @@ async function sessionChanged(session){
   orders=[];historyOrders=[];el('kitchen-list').replaceChildren();el('kitchen-stats').textContent='';
   el('login').classList.toggle('hidden',!!session);
   el('logout').classList.toggle('hidden',!session);
-  if(!session){message(forcedReason||'Sign in with an authorized kitchen account.');return;}
+  if(!session){message(forcedReason||'Sign in with an authorized kitchen account.');finishKitchenStartup();return;}
   const {data,error}=await db.from('kitchen_staff').select('user_id, restaurant_id, is_active').eq('user_id',session.user.id).maybeSingle();
   if(epoch!==generation)return;
   if(error){message('Connection unavailable · retrying account verification…');setTimeout(()=>{if(epoch===generation)sessionChanged(session).catch(e=>message(e.message));},5000);return;}
