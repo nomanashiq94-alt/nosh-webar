@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Nosh Menu Admin</title>
+  <title>ARMenu Admin</title>
   
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -56,6 +56,35 @@
     }
     .admin-input { display:block; width:100%; margin-top:5px; padding:10px; border-radius:10px; background:#1e293b; border:1px solid #475569; color:white; }
   [hidden],.hidden{display:none!important}
+
+/* Shared ARMenu admin visual language */
+html,body{background:#24243d!important;color:#eeeef7!important}
+body{font-variant-numeric:tabular-nums}
+.armenu-workspace{max-width:1120px!important;background:#111124!important;border:1px solid #393950!important;padding:26px!important;border-radius:12px!important}
+.armenu-header{display:flex;align-items:center;justify-content:space-between;gap:14px;padding-bottom:18px;border-bottom:1px solid #393950}
+.armenu-eyebrow{display:block;color:#299cff;font-size:10px;font-weight:700;letter-spacing:.14em;margin-bottom:7px}
+.armenu-header h1{color:#eeeef7!important;font-size:26px!important;letter-spacing:-.035em}
+.armenu-tag{font-size:12px;color:#a5abc3;background:#202039;border:1px solid #393950;padding:9px 12px;border-radius:8px}
+.armenu-tag i{color:#299cff;margin-right:5px}
+.text-amber-400,.text-amber-300,.text-amber-200{color:#65b8ff!important}
+.text-slate-400{color:#a5abc3!important}
+.bg-amber-500{background:#299cff!important;color:#08162b!important}
+.bg-slate-700{background:#292943!important;color:#eeeef7!important}
+.border-slate-700,.border-amber-500\\/30{border-color:#393950!important}
+.admin-input{background:#202039!important;border:1px solid #44445e!important;color:#eeeef7!important;padding:12px!important;border-radius:8px!important}
+.admin-input:focus,button:focus-visible{outline:2px solid #299cff;outline-offset:2px}
+#admin-message{padding:10px 12px;background:#19263e;border-radius:8px;overflow-wrap:anywhere}
+#admin-logout{background:#292943;border:1px solid #44445e;border-radius:8px;padding:8px 14px;text-decoration:none;color:#eeeef7}
+#admin-tools button{padding:10px 16px;font-size:13px}
+#admin-list>div{background:#202039!important;border:1px solid #393950;padding:16px!important;border-radius:9px!important}
+#admin-list>div button{padding:9px 14px}
+#admin-form{background:#17172c;padding:20px;border:1px solid #393950;border-radius:10px}
+#admin-form label{font-size:13px;color:#d9dbea}
+#admin-form h3{font-size:19px}
+#admin-form fieldset,#admin-form .bg-slate-800\\/60{background:#202039!important}
+#admin-login{max-width:440px;margin:24px auto}
+button:hover:not(:disabled){filter:brightness(1.12)}
+@media(max-width:640px){.armenu-workspace{padding:16px!important}.armenu-header{align-items:flex-start;flex-direction:column}.armenu-header h1{font-size:23px!important}#admin-form{padding:12px}#admin-list>div{flex-wrap:wrap}#admin-list>div button{padding:9px 12px}}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase-config.js"></script>
@@ -64,8 +93,8 @@
 <body class="min-h-screen bg-slate-950">
   <!-- Secured cloud menu admin -->
   <main class="p-4 sm:p-8">
-    <div class="max-w-2xl mx-auto bg-slate-900 border border-slate-700 rounded-2xl p-5 space-y-4">
-      <h1 class="text-2xl font-bold text-amber-400">Nosh Menu Admin</h1>
+    <div class="armenu-workspace max-w-2xl mx-auto bg-slate-900 border border-slate-700 rounded-2xl p-5 space-y-4">
+      <header class="armenu-header"><div><span class="armenu-eyebrow">ARMENU / MANAGEMENT</span><h1 class="text-2xl font-bold text-amber-400">ARMenu Admin</h1></div><span class="armenu-tag"><i class="fa-solid fa-utensils" aria-hidden="true"></i> Menu management</span></header>
       <p class="text-xs text-slate-400">Save publishes changes to the shared menu. Customers receive updates automatically.</p>
       <p id="admin-message" class="text-xs text-amber-300" role="status">Restoring workspace…</p>
       <form id="admin-login" onsubmit="signInAdmin(event)" class="hidden space-y-3">
