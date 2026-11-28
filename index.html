@@ -620,15 +620,15 @@
             </div>
             
             ${sizes.length ? `<label class="text-xs text-slate-300">Size
-              <select onchange="chooseSize('${item.id}', this)" class="block w-full mt-1 rounded-lg bg-slate-800 border border-slate-700 px-3 py-2 text-sm">
+              <select onchange="chooseSize(this.dataset.itemId, this)" data-item-id="${esc(item.id)}" class="block w-full mt-1 rounded-lg bg-slate-800 border border-slate-700 px-3 py-2 text-sm">
                 ${sizes.map(key => `<option value="${key}" ${key === size ? 'selected' : ''}>${sizeLabels[key]}</option>`).join('')}
               </select></label>` : ''}
             <div class="flex items-center gap-2 pt-2">
-              <button onclick="openArModal('${item.id}')" class="flex-1 py-2.5 px-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 hover:bg-amber-500 hover:text-slate-950 transition text-xs font-semibold flex items-center justify-center gap-2">
+              <button onclick="openArModal(this.dataset.itemId)" data-item-id="${esc(item.id)}" class="flex-1 py-2.5 px-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 hover:bg-amber-500 hover:text-slate-950 transition text-xs font-semibold flex items-center justify-center gap-2">
                 <i class="fa-solid fa-cube text-amber-400"></i>
                 <span>3D / AR</span>
               </button>
-              <button data-order-add ${orderingAllowed() ? '' : 'disabled'} onclick="addToCart('${item.id}')" class="flex-1 py-2.5 px-3 rounded-xl bg-amber-500 text-slate-950 hover:bg-amber-400 transition text-xs font-bold flex items-center justify-center gap-2 shadow-md shadow-amber-500/10">
+              <button data-order-add ${orderingAllowed() ? '' : 'disabled'} onclick="addToCart(this.dataset.itemId)" data-item-id="${esc(item.id)}" class="flex-1 py-2.5 px-3 rounded-xl bg-amber-500 text-slate-950 hover:bg-amber-400 transition text-xs font-bold flex items-center justify-center gap-2 shadow-md shadow-amber-500/10">
                 <i class="fa-solid fa-plus"></i>
                 <span>${orderingAllowed() ? 'Add' : 'Unavailable'}</span>
               </button>
