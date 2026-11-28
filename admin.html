@@ -55,7 +55,8 @@
       border-radius: 4px;
     }
     .admin-input { display:block; width:100%; margin-top:5px; padding:10px; border-radius:10px; background:#1e293b; border:1px solid #475569; color:white; }
-  </style>
+  [hidden],.hidden{display:none!important}
+</style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase-config.js"></script>
 <script src="nosh-cloud.js"></script>
@@ -66,8 +67,8 @@
     <div class="max-w-2xl mx-auto bg-slate-900 border border-slate-700 rounded-2xl p-5 space-y-4">
       <h1 class="text-2xl font-bold text-amber-400">Nosh Menu Admin</h1>
       <p class="text-xs text-slate-400">Save publishes changes to the shared menu. Customers receive updates automatically.</p>
-      <p id="admin-message" class="text-xs text-amber-300" role="status">Sign in to edit the shared menu.</p>
-      <form id="admin-login" onsubmit="signInAdmin(event)" class="space-y-3">
+      <p id="admin-message" class="text-xs text-amber-300" role="status">Restoring workspace…</p>
+      <form id="admin-login" onsubmit="signInAdmin(event)" class="hidden space-y-3">
         <label class="block text-sm">Admin email<input id="admin-email" type="email" required autocomplete="username" class="admin-input"></label>
         <label class="block text-sm">Password<input id="admin-password" type="password" required autocomplete="current-password" class="admin-input"></label>
         <button type="submit" class="bg-amber-500 text-black px-4 py-2 rounded-xl font-bold">Sign in</button>
@@ -122,6 +123,6 @@
     <span id="toast-message">Item added to cart!</span>
   </div>
 
-  <script src="admin.js"></script>
+  <script src="admin.js?v=62-session"></script>
 </body>
 </html>
