@@ -8,7 +8,7 @@ let kitchenView = 'active';
 let historyOrders = [];
 const el=id=>document.getElementById(id);
 function finishKitchenStartup(){document.documentElement.removeAttribute('data-kitchen-startup');}
-const kitchenDisplayModes=['restaurant','light','dark'];let kitchenDisplay='restaurant';try{const saved=localStorage.getItem('nosh-kitchen-display-v2');if(kitchenDisplayModes.includes(saved))kitchenDisplay=saved}catch{}function applyKitchenDisplay(){document.body.dataset.display=kitchenDisplay;el('display-mode').value=kitchenDisplay;}el('display-mode').onchange=()=>{kitchenDisplay=el('display-mode').value;applyKitchenDisplay();try{localStorage.setItem('nosh-kitchen-display-v2',kitchenDisplay)}catch{}};applyKitchenDisplay();
+const kitchenDisplayModes=['restaurant','light','dark'];let kitchenDisplay='dark';try{const saved=localStorage.getItem('nosh-kitchen-display-v2');if(kitchenDisplayModes.includes(saved))kitchenDisplay=saved}catch{}function applyKitchenDisplay(){document.body.dataset.display=kitchenDisplay;el('display-mode').value=kitchenDisplay;}el('display-mode').onchange=()=>{kitchenDisplay=el('display-mode').value;applyKitchenDisplay();try{localStorage.setItem('nosh-kitchen-display-v2',kitchenDisplay)}catch{}};applyKitchenDisplay();
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money=v=>Number(v||0).toLocaleString('en-PK',{minimumFractionDigits:2,maximumFractionDigits:2});
 function renderBill(o){
@@ -75,8 +75,8 @@ function renderKitchen(){
   if(kitchenView==='history'){
     el('kitchen-stats').textContent='Archived order history: '+historyOrders.length+' orders · read-only';
     el('kitchen-list').innerHTML=historyOrders.length?historyOrders.map(o=>`
-      <div class="rounded-2xl border border-slate-700 bg-slate-900 p-4 space-y-3">
-        <div class="flex justify-between gap-3"><div><span class="text-xs text-amber-400">${esc(o.id)}</span><h3 class="text-lg font-bold">Table ${esc(String(o.table).padStart(2,'0'))}</h3></div><b>${esc(o.status)}</b></div>
+      <div class="kds-ticket rounded-2xl border border-slate-700 bg-slate-900 p-4 space-y-3" data-status="${esc(o.status)}">
+        <div class="flex justify-between gap-3"><div><span class="text-xs text-amber-400">${esc(o.id)}</span><h3 class="text-lg font-bold">Table ${esc(String(o.table).padStart(2,'0'))}</h3></div><b class="kds-status" data-status="${esc(o.status)}">${esc(o.status)}</b></div>
         <div class="text-xs text-slate-400"><p>Customer: ${esc(String(o.name??'').trim()||'Guest')} (${esc(o.phone||'N/A')})</p><p>Payment: ${esc(o.payment)} at Counter</p><p>${esc(new Date(o.createdAt).toLocaleString())}</p></div>
         <div class="bg-slate-950 p-3 rounded-xl space-y-1">${(Array.isArray(o.items)?o.items:[]).filter(i=>i && typeof i==='object').map(i=>`<div class="flex justify-between gap-2 text-sm"><span>${esc(i.quantity)} × ${esc(i.title)}</span><span>Rs. ${money(Number(i.price)*Number(i.quantity))}</span></div>`).join('')}</div>
         ${renderBill(o)}<div class="text-xs text-slate-400">Archived · read-only</div>
@@ -87,8 +87,8 @@ function renderKitchen(){
   const total=orders.filter(o=>o.status!=='Cancelled').reduce((n,o)=>n+Number(o.total),0);
   el('kitchen-stats').textContent='Unarchived orders: '+orders.length+' | Active: '+active.length+' | Order value: Rs. '+money(total)+' (not verified payments)';
   el('kitchen-list').innerHTML=orders.length?orders.map(o=>`
-    <div class="rounded-2xl border border-slate-700 bg-slate-900 p-4 space-y-3">
-      <div class="flex justify-between gap-3"><div><span class="text-xs text-amber-400">${esc(o.id)}</span><h3 class="text-lg font-bold">Table ${esc(String(o.table).padStart(2,'0'))}</h3></div><b>${esc(o.status)}</b></div>
+    <div class="kds-ticket rounded-2xl border border-slate-700 bg-slate-900 p-4 space-y-3" data-status="${esc(o.status)}">
+      <div class="flex justify-between gap-3"><div><span class="text-xs text-amber-400">${esc(o.id)}</span><h3 class="text-lg font-bold">Table ${esc(String(o.table).padStart(2,'0'))}</h3></div><b class="kds-status" data-status="${esc(o.status)}">${esc(o.status)}</b></div>
       <div class="text-xs text-slate-400"><p>Customer: ${esc(String(o.name??'').trim()||'Guest')} (${esc(o.phone||'N/A')})</p><p>Payment: ${esc(o.payment)} at Counter</p><p>${esc(new Date(o.createdAt).toLocaleString())}</p></div>
       <div class="bg-slate-950 p-3 rounded-xl space-y-1">${(Array.isArray(o.items)?o.items:[]).filter(i=>i && typeof i === "object").map(i=>`<div class="flex justify-between gap-2 text-sm"><span>${esc(i.quantity)} × ${esc(i.title)}</span><span>Rs. ${money(Number(i.price)*Number(i.quantity))}</span></div>`).join('')}</div>
       ${renderBill(o)}<div class="flex justify-end items-center">
