@@ -782,7 +782,37 @@
 
 .an-chart{display:grid;gap:10px;margin:16px 0}.an-chart svg{max-width:180px;width:100%;display:block;margin:auto}.an-chart .an-track{height:12px;background:var(--line-strong);border-radius:8px;overflow:hidden}.an-chart .an-fill{height:100%;background:#38bdf8;border-radius:8px}#an-breakdown .an-track{height:10px;background:var(--line-strong);border-radius:8px;overflow:hidden;margin:6px 0 16px}#an-breakdown .an-fill{height:100%;border-radius:8px}#an-stats strong{overflow-wrap:anywhere}#analytics-section label{margin:0}#analytics-section .row{align-items:end}
 .an-tabs button[aria-pressed="false"]{background:var(--bg);color:var(--ink);border:1px solid var(--line-strong)}
- .theme-library-card{border:1px solid var(--line-strong);padding:10px;border-radius:10px;min-width:0}.theme-library-card button{margin:4px 0;width:100%}#theme-preview.desktop-preview{max-width:100%;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}#theme-preview.desktop-preview header,#theme-preview.desktop-preview > .theme-demo-action,#theme-preview.desktop-preview > .hint{grid-column:1/-1} </style>
+ .theme-library-card{border:1px solid var(--line-strong);padding:10px;border-radius:10px;min-width:0}.theme-library-card button{margin:4px 0;width:100%}#theme-preview.desktop-preview{max-width:100%;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}#theme-preview.desktop-preview header,#theme-preview.desktop-preview > .theme-demo-action,#theme-preview.desktop-preview > .hint{grid-column:1/-1} 
+/* Reference-inspired admin finish: presentation only. */
+body:not(.light){--bg:#24243d;--bg-elevated:#101022;--panel:#111124;--panel-hover:#202039;--line:rgba(166,174,210,.13);--line-strong:rgba(166,174,210,.28);--ink:#eeeef7;--muted:#a5abc3;--accent:#299cff;--accent-hover:#65b8ff;--accent-ink:#08162b;--accent-soft:rgba(41,156,255,.13);--shadow-md:none;--shadow-sm:none;--radius-lg:10px;--radius-md:9px}
+body{font-variant-numeric:tabular-nums}
+#sidebar{width:238px;padding:22px 14px;background:var(--panel)}
+main:has(#dashboard:not([hidden])){padding-left:258px;padding-right:20px;padding-top:0}
+body.sidebar-closed main:has(#dashboard:not([hidden])){padding-left:20px}
+.brand{font-size:20px;padding:8px 10px 22px;letter-spacing:-.035em}
+nav{gap:5px}nav button{gap:11px;padding:11px 12px;font-size:13px}
+nav button::before{content:attr(data-symbol);width:20px;text-align:center;font-size:17px;color:var(--accent);flex:none}
+nav button[aria-current="page"]{border-color:transparent;box-shadow:inset 3px 0 var(--accent)}
+#topbar{background:var(--panel);padding:12px 16px;margin:0 -20px 20px -20px;min-height:68px;backdrop-filter:none}
+#view-title{font-size:20px}section{padding:20px;border-radius:10px;box-shadow:none}
+#billing-overview{background:transparent;border:0;padding:0}
+#billing-summary{grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:16px}
+.billing-stat{position:relative;overflow:hidden;background:var(--panel);padding:20px 18px;min-height:105px;border-radius:10px}
+.billing-stat strong{font-size:25px;color:var(--ink);margin-top:12px;overflow-wrap:anywhere}
+.billing-stat::after{content:'';position:absolute;right:0;top:0;width:4px;height:100%;background:var(--metric,#299cff)}
+.billing-stat:nth-child(4n+1){--metric:#299cff}.billing-stat:nth-child(4n+2){--metric:#21bd88}.billing-stat:nth-child(4n+3){--metric:#ff9d28}.billing-stat:nth-child(4n+4){--metric:#ff647c}
+.billing-alert,#restaurants li{background:var(--panel);border-radius:9px}
+#restaurants li{padding:18px}#restaurants li strong{display:block}#restaurants li small{margin-left:0}
+#restaurants li button{background:var(--panel-hover)}
+.billing-table th,.payment-table th{background:var(--panel-hover)}
+.billing-table td,.payment-table td{padding:11px 13px}
+#onboard-panel{background:var(--panel-hover);border-radius:12px;padding:18px}
+#onboard-fields label:not(:has(input[type=checkbox])){display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+#onboard-fields input:not([type=checkbox]):not([type=color]){flex:1;min-width:140px}
+button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+@media(max-width:760px){main:has(#dashboard:not([hidden])),body.sidebar-closed main:has(#dashboard:not([hidden])){padding:12px}#sidebar{width:auto;padding:12px}nav{gap:4px}nav button{padding:8px;font-size:12px}#topbar{margin:0 0 14px;padding:8px;min-height:56px}#view-title{font-size:17px}#billing-summary{grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}.billing-stat{padding:14px;min-height:90px}.billing-stat strong{font-size:20px}section{padding:14px}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important;animation:none!important}}
+</style>
 </head>
 <body>
   <main>
@@ -802,16 +832,16 @@
       <aside id="sidebar">
         <div class="brand">◈ Nosh WebAR <small>SUPER ADMIN</small></div>
         <nav>
-          <button data-nav="dashboard" type="button">Overview</button>
-          <button data-nav="analytics" type="button">Analytics</button>
-          <button data-nav="restaurants" type="button">Restaurants</button>
-          <button data-nav="settings" type="button">Restaurant settings</button>
-          <button data-nav="branding" type="button">Themes &amp; branding</button>
-          <button data-nav="subscriptions" type="button">Subscriptions</button>
-          <button data-nav="payments" type="button">Payments</button>
-          <button data-nav="kitchen" type="button">Kitchen management</button>
-          <button data-nav="owners" type="button">Owner management</button>
-          <button data-nav="menu" type="button">Menu management</button>
+          <button data-nav="dashboard" data-symbol="◫" type="button">Overview</button>
+          <button data-nav="analytics" data-symbol="▥" type="button">Analytics</button>
+          <button data-nav="restaurants" data-symbol="⌂" type="button">Restaurants</button>
+          <button data-nav="settings" data-symbol="⚙" type="button">Restaurant settings</button>
+          <button data-nav="branding" data-symbol="◈" type="button">Themes &amp; branding</button>
+          <button data-nav="subscriptions" data-symbol="▤" type="button">Subscriptions</button>
+          <button data-nav="payments" data-symbol="$" type="button">Payments</button>
+          <button data-nav="kitchen" data-symbol="♨" type="button">Kitchen management</button>
+          <button data-nav="owners" data-symbol="♙" type="button">Owner management</button>
+          <button data-nav="menu" data-symbol="☷" type="button">Menu management</button>
         </nav>
         
       </aside>
