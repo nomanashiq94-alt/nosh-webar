@@ -8,7 +8,7 @@ let kitchenView = 'active';
 let historyOrders = [];
 let renderedOrderKey=null, liveRefreshTimer=null;
 function scheduleLiveRefresh(){clearTimeout(liveRefreshTimer);const epoch=generation;liveRefreshTimer=setTimeout(()=>{if(epoch===generation)refreshOrders().catch(e=>message(e.message));},100);}
-function renderKitchenIfChanged(){const key=JSON.stringify([kitchenView,kitchenView==='history'?historyOrders:orders]);if(key!==renderedOrderKey){renderKitchen();renderedOrderKey=key;}}
+function renderKitchenIfChanged(){if(kitchenView==='tables')return;const key=JSON.stringify([kitchenView,kitchenView==='history'?historyOrders:orders]);if(key!==renderedOrderKey){renderKitchen();renderedOrderKey=key;}}
 const el=id=>document.getElementById(id);
 function finishKitchenStartup(){document.documentElement.removeAttribute('data-kitchen-startup');}
 const kitchenDisplayModes=['restaurant','light','dark'];let kitchenDisplay='dark';try{const saved=localStorage.getItem('nosh-kitchen-display-v2');if(kitchenDisplayModes.includes(saved))kitchenDisplay=saved}catch{}function applyKitchenDisplay(){document.body.dataset.display=kitchenDisplay;el('display-mode').value=kitchenDisplay;}el('display-mode').onchange=()=>{kitchenDisplay=el('display-mode').value;applyKitchenDisplay();try{localStorage.setItem('nosh-kitchen-display-v2',kitchenDisplay)}catch{}};applyKitchenDisplay();
@@ -62,18 +62,22 @@ async function enableSound(){
 el('sound-toggle').onclick=async()=>{if(soundEnabled){soundEnabled=false;syncAlarm();}else await enableSound();};
 el('sound-test').onclick=async()=>{if(await enableSound()){if(beepTimer===null)beep();}};
 function switchKitchenView(view){
-  if(!['active','history'].includes(view))return;
-  if(kitchenView===view)return;
+  if(!['active','history','tables'].includes(view)|| (view==='tables'&&(!tableEnabled||!signedIn)))return;
+  const changed=kitchenView!==view;
   kitchenView=view;
-  el('tab-active').setAttribute('aria-selected',String(view==='active'));
-  el('tab-history').setAttribute('aria-selected',String(view==='history'));
-  el('tab-active').classList.toggle('bg-amber-500',view==='active');
-  el('tab-active').classList.toggle('text-black',view==='active');
-  el('tab-history').classList.toggle('bg-amber-500',view==='history');
-  el('tab-history').classList.toggle('text-black',view==='history');
-  el('archive-finished').classList.toggle('hidden',view==='history');
+  for(const [id,mode] of [['tab-active','active'],['tab-history','history'],['tab-tables','tables']]){
+    const button=el(id);if(!button)continue;
+    button.setAttribute('aria-selected',String(view===mode));
+    button.classList.toggle('bg-amber-500',view===mode);
+    button.classList.toggle('text-black',view===mode);
+  }
+  el('table-panel').hidden=view!=='tables';
+  el('kitchen-list').hidden=view==='tables';
+  el('kitchen-stats').hidden=view==='tables';
+  el('archive-finished').classList.toggle('hidden',view!=='active');
+  if(view==='tables'){updateControls();if(changed)void loadTables();return;}
   renderKitchenIfChanged();updateControls();
-  refreshOrders().catch(e=>message(e.message));
+  if(changed)refreshOrders().catch(e=>message(e.message));
 }
 function renderKitchen(){
   if(kitchenView==='history'){
@@ -296,7 +300,7 @@ let tableEnabled=false, tableBusy=false, tableTicket=0, tableRows=[], tablePins=
 function resetTables(){
  ++tableTicket;tableEnabled=false;tableBusy=false;tableRows=[];tablePins.clear();
  if(!el('tab-tables'))return;
- el('tab-tables').hidden=true;el('tab-tables').setAttribute('aria-expanded','false');el('table-panel').hidden=true;el('table-grid').replaceChildren();el('table-status').textContent='';
+ if(kitchenView==='tables')switchKitchenView('active');el('tab-tables').hidden=true;el('tab-tables').setAttribute('aria-selected','false');el('table-panel').hidden=true;el('table-grid').replaceChildren();el('table-status').textContent='';
 }
 function renderTables(){
  if(!el('table-grid'))return;
@@ -340,7 +344,7 @@ async function changeTable(t,action){
  finally{if(epoch===generation){tableBusy=false;await loadTables();}}
 }
 if(el('tab-tables')){
- el('tab-tables').onclick=()=>{if(!tableEnabled||!signedIn)return;const p=el('table-panel');p.hidden=!p.hidden;el('tab-tables').setAttribute('aria-expanded',String(!p.hidden));if(!p.hidden)void loadTables();};
+ el('tab-tables').onclick=()=>switchKitchenView('tables');
  el('table-refresh').onclick=()=>void loadTables();
  setInterval(()=>void loadTables(),15000);
 }
