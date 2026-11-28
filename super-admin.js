@@ -732,18 +732,18 @@ async function checkSession() {
   resetSettings();
   ++brandingRequest;
   const seq = ++epoch;
-  $('dashboard').hidden = true; $('login').hidden = false;
+  $('dashboard').hidden = true; $('login').hidden = true; message('Restoring workspace…');
   $('branding-section').hidden = true; selectedRestaurant = null;
   ++subscriptionRequest; selectedSubscriptionRestaurant = null;
   $('subscription-section').hidden = true; resetRenewalAttempt();
   ++paymentRequest; selectedPaymentRestaurant = null; $('payment-section').hidden = true;
   const { data: { user }, error } = await db.auth.getUser();
   if (seq !== epoch) return;
-  if (error || !user) { message('Sign in with your existing admin account.'); return; }
+  if (error || !user) { $('login').hidden=false; message('Sign in with your existing admin account.'); return; }
   const { data: admin, error: accessError } = await db.from('super_admins')
     .select('user_id').eq('user_id', user.id).maybeSingle();
   if (seq !== epoch) return;
-  if (accessError || !admin) { message('This account is not a super admin.'); return; }
+  if (accessError || !admin) { $('login').hidden=false; message('This account is not a super admin.'); return; }
   $('login').hidden = true; $('dashboard').hidden = false; showView('dashboard');
   try { await refreshRestaurants(); message('Super admin connected.'); }
   catch (e) { message(e.message); }
@@ -992,4 +992,4 @@ async function openOrderSecurity(r){
 }
 showView('dashboard');
 
-checkSession();
+checkSession().catch(e=>{ $('login').hidden=false; message(e.message||'Connection unavailable.'); });
