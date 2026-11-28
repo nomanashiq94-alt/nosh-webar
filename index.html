@@ -168,7 +168,8 @@
     <div class="flex-1 relative w-full h-full bg-slate-950 flex items-center justify-center">
       <model-viewer
         id="food-viewer"
-        src=""
+        loading="eager"
+        reveal="auto"
         alt="A 3D food item model"
         ar
         ar-modes="webxr scene-viewer quick-look"
@@ -182,9 +183,9 @@
           <i class="fa-solid fa-camera text-base"></i>
           <span>View on Table (AR)</span>
         </button>
-        <div slot="progress-bar" class="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/80 gap-3">
+        <div id="ar-progress" slot="progress-bar" class="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/80 gap-3" style="pointer-events:none">
           <div class="w-10 h-10 border-4 border-amber-500/30 border-t-amber-500 rounded-full animate-spin"></div>
-          <span class="text-xs text-slate-400 font-medium">Loading AR Model...</span>
+          <span id="ar-progress-label" class="text-xs text-slate-400 font-medium">Loading 3D model…</span>
         </div>
       </model-viewer>
       <a id="iphone-ar-link" rel="ar" class="ar-button no-underline whitespace-nowrap" style="display:none"
@@ -789,6 +790,13 @@
       const status = document.getElementById('ar-size-status');
       status.textContent = model ? 'Loading 3D preview…' : '3D preview unavailable for this dish.';
       const currentLoad = arLoad;
+      const progress=document.getElementById('ar-progress');
+      const progressLabel=document.getElementById('ar-progress-label');
+      const hideProgress=()=>{progress.style.display='none';};
+      progress.style.display=model?'flex':'none';
+      progressLabel.textContent='Loading 3D model…';
+      const slowTimer=setTimeout(()=>{if(!currentLoad.signal.aborted){hideProgress();status.textContent=directAR?'3D preview is taking longer than expected. View on Table is available.':'3D preview is taking longer than expected. You can close and retry.';}},15000);
+      currentLoad.signal.addEventListener('abort',()=>clearTimeout(slowTimer),{once:true});
       modal.classList.remove('hidden');
       setTimeout(() => { if (!currentLoad.signal.aborted) modal.classList.remove('opacity-0'); }, 10);
       if (!model) { viewer.removeAttribute('src'); viewer.querySelector('[slot="ar-button"]').style.display='none'; return; }
@@ -799,10 +807,15 @@
       if (currentLoad.signal.aborted) return;
       viewer.scale = '1 1 1';
       const listener = {once:true, signal:arLoad.signal};
-      const onLoad = () => calibrateViewer(viewer,item,status,currentLoad.signal);
+      const onLoad = () => {clearTimeout(slowTimer);hideProgress();void calibrateViewer(viewer,item,status,currentLoad.signal);};
+      viewer.addEventListener('progress',event=>{
+        const p=event.detail?.totalProgress;
+        if(Number.isFinite(p))progressLabel.textContent='Loading 3D model… '+Math.round(p*100)+'%';
+      },{signal:currentLoad.signal});
       if (model && viewer.loaded && viewer.getAttribute('src') === model) onLoad();
       else if (model) viewer.addEventListener('load', onLoad, listener);
       viewer.addEventListener('error', () => {
+        clearTimeout(slowTimer);hideProgress();
         status.textContent = directAR ? '3D preview could not load. You can still open View on Table.'
           : '3D model could not load. Check your connection and reopen the dish.';
       }, listener);
@@ -823,6 +836,7 @@
       const arBtn = viewer.querySelector('[slot="ar-button"]');
       arBtn.style.display = model && !directAR ? 'flex' : 'none';
       }).catch(() => {
+        if (!currentLoad.signal.aborted){clearTimeout(slowTimer);hideProgress();}
         if (!currentLoad.signal.aborted) status.textContent = directAR ? '3D preview unavailable. You can still use View on Table.' : '3D engine could not load. Check your connection and reopen the dish.';
       });
     }
