@@ -398,6 +398,9 @@
     .custom-theme .bg-amber-500 *, .custom-theme .ar-button * { color: inherit !important; }
     .custom-theme #cart-badge-floating { background-color: var(--restaurant-primary) !important; color: var(--brand-button-text) !important; }
     .custom-text #order-form input::placeholder { color: var(--theme-text); opacity: .65; }
+    .custom-border body [class*="border-slate-"], .custom-border [data-dish-card] { border-color: var(--theme-border) !important; }
+    html.custom-muted body .text-slate-400, html.custom-muted body .text-slate-500, html.custom-muted body .text-slate-300 { color: var(--theme-muted) !important; }
+    html.custom-muted #order-form input::placeholder { color: var(--theme-muted); opacity: 1; }
 
   </style>
   <script>
@@ -412,7 +415,7 @@
         try {
           const { data, error } = await window.createNoshClient()
             .from('restaurants')
-            .select('id,name,slug,logo_url,primary_color,secondary_color,background_color,card_color,text_color,price_color,button_text_color')
+            .select('id,name,slug,logo_url,primary_color,secondary_color,background_color,card_color,text_color,price_color,button_text_color,border_color,muted_text_color')
             .eq('id', context.id)
             .eq('status', 'active')
             .single();
@@ -428,7 +431,7 @@
         const secondary = validColor(restaurant.secondary_color, '#fb923c');
         const name = String(restaurant.name || 'Restaurant').slice(0, 80);
         const logo = typeof restaurant.logo_url === 'string' && /^https:\/\//i.test(restaurant.logo_url) ? restaurant.logo_url : '';
-        const themeColors = [restaurant.background_color,restaurant.card_color,restaurant.text_color,restaurant.price_color,restaurant.button_text_color].map(v => validColor(v, ''));
+        const themeColors = [restaurant.background_color,restaurant.card_color,restaurant.text_color,restaurant.price_color,restaurant.button_text_color,restaurant.border_color,restaurant.muted_text_color].map(v => validColor(v, ''));
         const key = [restaurant.id, name, primary, secondary, logo, ...themeColors].join('|');
         if (key === lastBrandKey) return true;
         lastBrandKey = key;
@@ -445,7 +448,7 @@
         const accentLum = 0.2126 * accentLinear[0] + 0.7152 * accentLinear[1] + 0.0722 * accentLinear[2];
         document.documentElement.style.setProperty('--brand-accent', accentLum > 0.28 ? accent : '#fbbf24');
         const root = document.documentElement;
-        const names = ['background','card','text','price','button'];
+        const names = ['background','card','text','price','button','border','muted'];
         themeColors.forEach((value,i) => {
           root.classList.toggle('custom-'+names[i], Boolean(value));
           if(value) root.style.setProperty('--theme-'+names[i], value);
