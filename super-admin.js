@@ -27,15 +27,14 @@ async function refreshBillingOverview(restaurants) {
   const alerts = $('billing-alerts');
   const errorBox = $('billing-error');
   errorBox.textContent = '';
-  const { data, error } = await db.from('restaurant_subscription_status')
-    .select('restaurant_id,restaurant_name,plan_name,monthly_fee,currency,payment_status,expires_on,grace_period_days,subscription_status,days_until_expiry');
+  const [{data,error},{data:modes,error:modeError}] = await Promise.all([db.from('restaurant_subscription_status').select('restaurant_id,restaurant_name,plan_name,monthly_fee,currency,payment_status,expires_on,grace_period_days,subscription_status,days_until_expiry'),db.from('restaurant_subscriptions').select('restaurant_id,access_mode')]);
   if (error) {
     summary.textContent = 'Subscription status records unavailable.';
     rows.replaceChildren(); alerts.replaceChildren();
     errorBox.textContent = 'Could not load subscription status: ' + error.message;
     return;
   }
-  const {data: modes, error: modeError} = await db.from('restaurant_subscriptions').select('restaurant_id,access_mode');
+  
   const modeMap = new Map((modes || []).map(s => [s.restaurant_id,s.access_mode]));
   if (modeError) errorBox.textContent = 'Access modes unavailable: ' + modeError.message;
   const subs = (data || []).map(s => ({...s,access_mode:modeMap.get(s.restaurant_id)}));
