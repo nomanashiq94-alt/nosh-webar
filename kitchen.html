@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Live Kitchen Display System (KDS)</title>
+<title>ARMenu | Kitchen Display System</title>
 <style>
 html[data-kitchen-startup] body{background:#101722!important;color:#edf3fa!important;margin:0}
 html[data-kitchen-startup] #kitchen-workspace{display:none!important}
@@ -36,6 +36,31 @@ body:is([data-display="light"],[data-display="dark"]) :is(.border-slate-700,.bor
 body[data-display="light"] .text-red-200{color:#991b1b!important}
 body[data-display="light"] .text-green-400{color:#166534!important}
 body[data-display="light"] .text-white:not(.bg-amber-500){color:#172033}
+
+/* ARMenu KDS visual finish */
+body[data-display="dark"]{--restaurant-bg:#24243d!important;--restaurant-card:#111124!important;--restaurant-text:#eeeef7!important;--restaurant-primary:#299cff!important;--restaurant-secondary:#393950!important;--restaurant-price:#65b8ff!important;--restaurant-button:#08162b!important}
+html:has(body[data-display="dark"]){background:#24243d!important}
+html[data-kitchen-startup] body{background:#24243d!important}
+body{font-family:Inter,system-ui,sans-serif;font-variant-numeric:tabular-nums}
+.kds-workspace{max-width:1500px!important}
+.kds-header{padding:16px;border:1px solid var(--restaurant-secondary,#475569);border-radius:12px;background:var(--restaurant-card,#111124)}
+.kds-header h1{letter-spacing:-.025em}
+#kitchen-list{align-items:start;gap:16px}
+.kds-ticket{border-radius:10px!important;padding:18px!important;border-top:4px solid var(--ticket-status,#299cff)!important;min-width:0}
+[data-status="Received"]{--ticket-status:#ff9d28}[data-status="Preparing"]{--ticket-status:#299cff}[data-status="Ready"]{--ticket-status:#21bd88}[data-status="Served"]{--ticket-status:#8494aa}[data-status="Cancelled"]{--ticket-status:#ff647c}
+.kds-ticket h3{font-size:25px;line-height:1.25;margin-top:4px}
+.kds-ticket>div:first-child>div{min-width:0;overflow-wrap:anywhere}
+.kds-status{align-self:flex-start;border:1px solid var(--ticket-status,#299cff);border-radius:999px;padding:5px 10px;font-size:12px;color:var(--restaurant-text,#eeeef7);white-space:nowrap}
+.kds-ticket .bg-slate-950{border:1px solid var(--restaurant-secondary,#475569);border-radius:8px}
+.kds-ticket .admin-input{min-height:46px;font-size:15px;font-weight:650;width:100%!important}
+.kds-ticket>div:last-child{margin-top:12px}
+#sound-panel,#table-panel{border-radius:10px}
+#pending-count{font-size:17px}
+[role=tab],#tab-tables,#sound-toggle,#sound-test,#archive-finished,.kds-header button{min-height:44px}
+#logout{padding:8px 14px;border:1px solid var(--restaurant-secondary,#475569);border-radius:8px;text-decoration:none}
+#kitchen-stats{padding:12px 16px;background:var(--restaurant-card,#111124);border-radius:8px}
+button:focus-visible,select:focus-visible{outline:2px solid var(--restaurant-primary,#299cff);outline-offset:3px}
+@media(max-width:640px){body{padding:12px!important}.kds-header{padding:12px}.kds-ticket{padding:14px!important}.kds-ticket h3{font-size:23px}.kds-workspace{gap:12px}}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase-config.js"></script>
@@ -44,9 +69,9 @@ body[data-display="light"] .text-white:not(.bg-amber-500){color:#172033}
 <body class="min-h-screen bg-slate-950 p-6">
 <div id="kitchen-startup" role="status"><strong>Opening kitchen workspace…</strong><span id="kitchen-startup-detail">Checking your session and restaurant theme.</span><button id="kitchen-startup-retry" hidden type="button" onclick="location.reload()">Retry connection</button></div>
 <script>setTimeout(function(){if(document.documentElement.hasAttribute('data-kitchen-startup')){document.getElementById('kitchen-startup-detail').textContent='Connection is taking longer than expected.';document.getElementById('kitchen-startup-retry').hidden=false;}},12000);</script>
-<div id="kitchen-workspace" class="max-w-6xl mx-auto space-y-6">
-<div class="flex flex-wrap gap-3 justify-between items-center border-b border-slate-800 pb-4">
-<div class="flex items-center gap-3 min-w-0"><img id="kitchen-logo" hidden alt="" class="w-14 h-14 rounded-xl object-contain bg-slate-900"><div class="min-w-0"><h1 id="kitchen-name" class="text-2xl font-bold text-amber-400 break-words">Live Kitchen Display System</h1><p class="text-xs text-slate-400 mt-1">Real-Time Active Orders Dashboard</p></div></div>
+<div id="kitchen-workspace" class="max-w-6xl mx-auto space-y-6 kds-workspace">
+<div class="kds-header flex flex-wrap gap-3 justify-between items-center border-b border-slate-800 pb-4">
+<div class="flex items-center gap-3 min-w-0"><img id="kitchen-logo" hidden alt="" class="w-14 h-14 rounded-xl object-contain bg-slate-900"><div class="min-w-0"><h1 id="kitchen-name" class="text-2xl font-bold text-amber-400 break-words">Live Kitchen Display System</h1><p class="text-xs text-slate-400 mt-1">ARMENU · LIVE KITCHEN ORDERS</p></div></div>
 <div class="flex flex-wrap items-center gap-3">
 <select id="display-mode" aria-label="Display mode" class="admin-input" style="width:auto"><option value="restaurant">Restaurant theme</option><option value="light">Light mode</option><option value="dark">Dark mode</option></select>
 <button onclick="refreshOrders()" class="bg-slate-800 hover:bg-slate-700 px-4 py-2 rounded-xl text-xs font-semibold"><i class="fa-solid fa-rotate-right"></i> Refresh</button>
@@ -57,7 +82,7 @@ body[data-display="light"] .text-white:not(.bg-amber-500){color:#172033}
 <h2 class="font-bold text-xl text-amber-400">Kitchen Portal</h2><p class="text-sm text-slate-400">Sign in to manage restaurant orders</p>
 <label for="email" class="block text-sm">Username or email</label><input id="email" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" required class="admin-input" placeholder="Username or email">
 <label for="password" class="block text-sm">Password</label><div class="flex gap-2"><input id="password" type="password" autocomplete="current-password" required class="admin-input" placeholder="Password"><button id="toggle-password" type="button" aria-pressed="false" class="bg-slate-700 rounded-xl px-3">Show</button></div>
-<button class="bg-amber-500 text-black p-3 rounded-xl w-full font-semibold" type="submit">Sign in</button><p class="text-xs text-slate-400 text-center">Powered by Nosh WebAR</p>
+<button class="bg-amber-500 text-black p-3 rounded-xl w-full font-semibold" type="submit">Sign in</button><p class="text-xs text-slate-400 text-center">Powered by ARMenu</p>
 </form>
 <button id="logout" class="hidden text-sm underline">Sign out</button>
 <div class="flex flex-wrap gap-2" role="tablist" aria-label="Kitchen order views">
@@ -69,5 +94,5 @@ body[data-display="light"] .text-white:not(.bg-amber-500){color:#172033}
 <section id="sound-panel" hidden class="rounded-xl border border-slate-700 bg-slate-900 p-4 space-y-3"><div class="flex flex-wrap items-center gap-3"><strong id="pending-count" role="status">Pending orders: checking…</strong><button id="sound-toggle" type="button" class="bg-amber-500 text-black px-4 py-2 rounded-xl text-sm font-bold">Enable Sound</button><button id="sound-test" type="button" class="bg-slate-700 px-4 py-2 rounded-xl text-sm">Test Sound</button></div><p id="sound-status" role="status" class="text-xs text-slate-400">Enable sound after opening this page.</p></section>
 <div id="kitchen-stats" class="text-sm font-semibold text-amber-300"></div>
 <div id="kitchen-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
-</div><script src="kitchen.js?v=62-brand-ready"></script>
+</div><script src="kitchen.js?v=67-armenu"></script>
 </body></html>
