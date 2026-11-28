@@ -7,6 +7,7 @@ let kitchenRestaurantId = null;
 let kitchenView = 'active';
 let historyOrders = [];
 const el=id=>document.getElementById(id);
+const kitchenDisplayModes=['restaurant','light','dark'];let kitchenDisplay='restaurant';try{const saved=localStorage.getItem('nosh-kitchen-display-v2');if(kitchenDisplayModes.includes(saved))kitchenDisplay=saved}catch{}function applyKitchenDisplay(){document.body.dataset.display=kitchenDisplay;el('display-mode').value=kitchenDisplay;}el('display-mode').onchange=()=>{kitchenDisplay=el('display-mode').value;applyKitchenDisplay();try{localStorage.setItem('nosh-kitchen-display-v2',kitchenDisplay)}catch{}};applyKitchenDisplay();
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money=v=>Number(v||0).toLocaleString('en-PK',{minimumFractionDigits:2,maximumFractionDigits:2});
 function renderBill(o){
