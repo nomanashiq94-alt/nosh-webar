@@ -2,8 +2,8 @@
 <html lang="en" class="h-full bg-slate-900 text-slate-100">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>ARMenu | Digital Menu</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nosh WebAR Menu</title>
   
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -95,7 +95,7 @@
       </div>
 
        <!-- Header Cart Icon -->
-      <button onclick="toggleCartDrawer()" aria-label="Open food basket" class="relative p-2.5 rounded-xl bg-slate-800 border border-slate-700 text-slate-300 hover:text-white transition">
+      <button onclick="toggleCartDrawer()" class="relative p-2.5 rounded-xl bg-slate-800 border border-slate-700 text-slate-300 hover:text-white transition">
         <i class="fa-solid fa-basket-shopping text-base"></i>
         <span id="cart-badge-header" class="hidden absolute -top-1.5 -right-1.5 bg-amber-500 text-slate-950 text-[10px] font-extrabold w-5 h-5 rounded-full flex items-center justify-center border-2 border-slate-900">0</span>
       </button>
@@ -127,21 +127,20 @@
   <main class="max-w-md mx-auto px-4 py-5 w-full flex-1 flex flex-col gap-4">
     
     <!-- Category Filters -->
-    <div class="flex gap-2 overflow-x-auto pb-1 scrollbar-none" id="categories-bar" aria-label="Menu categories">
+    <div class="flex gap-2 overflow-x-auto pb-1 scrollbar-none" id="categories-bar">
       <!-- Generated via JS -->
     </div>
 
     <!-- Dish Cards List -->
     
-<div id="menu-container" class="pb-8">
+<div id="menu-container" class="space-y-4 pb-28">
   <!-- Menu items injected here -->
 </div>
-<footer class="armenu-credit text-xs text-slate-400 text-center">Powered by <strong>ARMenu</strong></footer>
 
   </main>
 
   <!-- Floating Sticky Cart Button (Mobile View) -->
-  <div class="armenu-basket fixed bottom-1 left-0 right-0 z-20 px-4 max-w-md mx-auto">
+  <div class="fixed bottom-1 left-0 right-0 z-20 px-4 max-w-md mx-auto">
     <button onclick="toggleCartDrawer()" class="w-full py-3.5 px-5 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 font-bold text-sm shadow-xl shadow-orange-500/25 flex items-center justify-between transition transform active:scale-95">
       <div class="flex items-center gap-3">
         <div class="relative bg-slate-950/20 p-1 rounded-xl">
@@ -161,7 +160,7 @@
         <h3 id="modal-item-title" class="text-base font-bold text-white">Item Name</h3>
         <p id="modal-item-price" class="text-xs text-amber-400 font-semibold">Rs. 0</p>
       </div>
-      <button onclick="closeArModal()" aria-label="Close 3D viewer" class="w-10 h-10 rounded-full bg-slate-800 text-slate-300 hover:text-white flex items-center justify-center transition">
+      <button onclick="closeArModal()" class="w-10 h-10 rounded-full bg-slate-800 text-slate-300 hover:text-white flex items-center justify-center transition">
         <i class="fa-solid fa-xmark text-lg"></i>
       </button>
     </div>
@@ -215,7 +214,7 @@
         <i class="fa-solid fa-bag-shopping text-amber-400"></i>
         <h2 class="font-bold text-lg text-white">Your Food Basket</h2>
       </div>
-      <button onclick="toggleCartDrawer()" aria-label="Close basket" class="w-9 h-9 rounded-full bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center">
+      <button onclick="toggleCartDrawer()" class="w-9 h-9 rounded-full bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center">
         <i class="fa-solid fa-xmark text-lg"></i>
       </button>
     </div>
@@ -256,7 +255,7 @@
         <h3 class="font-bold text-white text-base flex items-center gap-2">
           <i class="fa-solid fa-receipt text-amber-400"></i> Checkout Details
         </h3>
-        <button onclick="closeCheckoutModal()" aria-label="Close checkout" class="text-slate-400 hover:text-white">
+        <button onclick="closeCheckoutModal()" class="text-slate-400 hover:text-white">
           <i class="fa-solid fa-xmark text-lg"></i>
         </button>
       </div>
@@ -404,38 +403,6 @@
     html.custom-muted #order-form input::placeholder { color: var(--theme-muted); opacity: 1; }
 
   </style>
-
-<style id="armenu-customer-finish">
-body{font-variant-numeric:tabular-nums}
-body>header>div,body>main,body>#menu-connection,body>#ordering-notice,body>div.max-w-md:not(.armenu-basket){max-width:760px}
-#restaurant-brand-icon{width:48px;height:48px;border-radius:12px}
-#restaurant-brand-name{font-size:19px;letter-spacing:-.025em;overflow-wrap:anywhere}
-body>header>div>div:first-child{min-width:0}
-#categories-bar{position:sticky;top:76px;z-index:10;padding:9px 0;background:var(--theme-background,#020617);scrollbar-width:thin}
-#categories-bar button{min-height:42px;white-space:nowrap;border-radius:999px;padding-inline:16px}
-#menu-container{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
-[data-dish-card]{padding:12px;border-radius:16px;min-width:0;box-shadow:0 4px 14px #00000012}
-[data-dish-card] .dish-photo{height:auto;aspect-ratio:16/10;width:100%;border-radius:12px}
-[data-dish-card] h3{font-size:17px;line-height:1.35;overflow-wrap:anywhere}
-[data-dish-price]{font-size:16px}
-[data-dish-card] p{font-size:13px;line-height:1.55}
-[data-dish-card] button{min-height:44px;font-size:13px;box-shadow:none}
-[data-dish-card] select{min-height:44px;font-size:16px}
-.armenu-basket{bottom:max(10px,env(safe-area-inset-bottom));max-width:540px}
-.armenu-basket>button{min-height:54px;box-shadow:0 6px 22px #0004}
-.armenu-credit{padding:12px 0 92px;letter-spacing:.025em}
-#cart-drawer{padding-bottom:env(safe-area-inset-bottom)}
-#cart-items-list button{min-width:36px;min-height:36px}
-#cart-items-list>div{border-radius:12px}
-#checkout-modal>div{max-height:calc(100dvh - 32px);overflow-y:auto}
-#order-form input,#order-form select{font-size:16px;min-height:44px}
-#order-form button[type=submit],#checkout-btn,#modal-add-cart-btn{min-height:48px}
-button:focus-visible,a:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--restaurant-primary);outline-offset:3px}
-#ar-modal .ar-button{max-width:calc(100% - 24px);white-space:normal;text-align:center;justify-content:center;font-size:14px}
-@media(min-width:640px){#menu-container{grid-template-columns:repeat(2,minmax(0,1fr))}[data-dish-card]{flex-direction:column!important}[data-dish-card] .dish-photo{width:100%!important;aspect-ratio:16/10!important}[data-dish-card]>div:nth-child(2){flex:1} }
-@media(max-width:360px){[data-dish-card] button{padding-inline:8px;font-size:12px}#restaurant-brand-name{font-size:16px}}
-@media(prefers-reduced-motion:reduce){[data-dish-card],#cart-drawer,#ar-modal,#toast-notification{transition-duration:0s!important}}
-</style>
   <script>
     (function () {
       const validColor = (value, fallback) => /^#[0-9a-fA-F]{6}$/.test(value || '') ? value : fallback;
@@ -652,7 +619,7 @@ button:focus-visible,a:focus-visible,select:focus-visible,input:focus-visible{ou
         const shown = resolveSize(item, size);
         return `
         <div data-dish-card class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden hover:border-slate-700 transition flex flex-col gap-3 p-3 sm:flex-row sm:gap-4">
-          <div class="dish-photo relative h-44 w-full shrink-0 overflow-hidden rounded-xl bg-slate-800 sm:h-auto sm:w-2/5 sm:aspect-square sm:self-center">
+          <div class="relative h-44 w-full shrink-0 overflow-hidden rounded-xl bg-slate-800 sm:h-auto sm:w-2/5 sm:aspect-square sm:self-center">
             <img src="${esc(mediaUrl(item,'image'))}" alt="${esc(item.title)}" class="absolute inset-0 w-full h-full object-cover object-center" loading="${index<2 ? 'eager' : 'lazy'}" fetchpriority="${index===0 ? 'high' : 'auto'}" decoding="async" />
           </div>
           <div class="flex min-w-0 flex-1 flex-col justify-between gap-3 px-1 pb-1 sm:py-1">
