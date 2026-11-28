@@ -796,36 +796,35 @@ $('login-form').addEventListener('submit', async e => {
 });
 $('logout').addEventListener('click', async () => { if(brandingBusy||!allowLeaveBranding())return; await db.auth.signOut(); await checkSession(); });
 $('reload').addEventListener('click', async () => { try { await refreshRestaurants(); message('List refreshed.'); } catch (e) { message(e.message); } });
-$('create-form').addEventListener('submit', async e => {
-  e.preventDefault();
-  const name = $('name').value.trim(), slug = $('slug').value.trim().toLowerCase();
-  if (!name || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) { message('Enter a valid name and lowercase URL slug.'); return; }
-  const button = e.target.querySelector('button'); button.disabled = true;
-  try {
-    const { error } = await db.from('restaurants').insert({ name, slug, status: 'active' });
-    if (error) throw error;
-    e.target.reset(); await refreshRestaurants(); message('Restaurant created: ' + name);
-  } catch (err) { message('Could not create restaurant: ' + err.message); }
-  finally { button.disabled = false; }
-});
+
 
 
 let onboardUser=null,onboardDraft=null,onboardBusy=false;
 const onboardKey=()=> 'nosh-onboard-v1:'+onboardUser;
 function onboardPersist(){try{localStorage.setItem(onboardKey(),JSON.stringify(onboardDraft));return true;}catch{return false;}}
-function onboardRead(){try{return JSON.parse(localStorage.getItem(onboardKey())||'null');}catch{return null;}}
+function onboardRead(){try{return (()=>{const d=JSON.parse(localStorage.getItem(onboardKey())||'null');if(d&&!d.version){d.step=d.step===2?3:d.step===1?2:0;d.version=2;d.colors=[...themePresets['Midnight Amber']];d.logo='';d.manualSlug=!!d.slug;}return d;})();}catch{return null;}}
 function onboardRefresh(){ $('onboard-resume').hidden=!onboardUser||!onboardRead(); }
 function onboardRender(){
  const d=onboardDraft, fields=$('onboard-fields');fields.replaceChildren();
- $('onboard-title').textContent=['Step 1 of 3 — Restaurant details','Step 2 of 3 — Initial settings','Step 3 of 3 — Review & create'][d.step];
- $('onboard-back').disabled=d.step===0;$('onboard-next').textContent=d.step===2?'Create restaurant':'Next';
- const field=(label,key,type,attrs={})=>{const l=document.createElement('label');l.textContent=label+' ';const i=document.createElement('input');i.type=type;Object.assign(i,attrs);if(type==='checkbox')i.checked=d[key];else i.value=d[key];i.oninput=()=>{d[key]=type==='checkbox'?i.checked:i.value;if(!onboardPersist())$('onboard-status').textContent='Draft storage unavailable.';};l.append(i);fields.append(l);};
- if(d.step===0){field('Restaurant name','name','text',{required:true,maxLength:120});field('URL slug','slug','text',{required:true,maxLength:60,pattern:'[a-z0-9]+(-[a-z0-9]+)*'});}
- if(d.step===1){field('Tables','tables','number',{required:true,min:1,max:500,step:1});field('Tax %','tax','number',{required:true,min:0,max:100,step:.01});field('Service charge %','service','number',{required:true,min:0,max:100,step:.01});field('Cash enabled','cash','checkbox');field('Card enabled','card','checkbox');}
- if(d.step===2){const p=document.createElement('p');p.textContent=d.name+' · '+d.slug+' · '+d.tables+' tables · Tax '+d.tax+'% · Service '+d.service+'% · '+[d.cash?'Cash':'',d.card?'Card':''].filter(Boolean).join(' / ');fields.append(p);const note=document.createElement('p');note.textContent='Creates an active restaurant with an empty menu. Branding, accounts, subscriptions and QR setup follow in later phases.';fields.append(note);}
+ $('onboard-title').textContent=['Step 1 of 4 — Restaurant details','Step 2 of 4 — Branding','Step 3 of 4 — Initial settings','Step 4 of 4 — Review & create'][d.step];
+ $('onboard-back').disabled=d.step===0;$('onboard-next').textContent=d.step===3?'Create restaurant':'Next';
+ const field=(label,key,type,attrs={})=>{const l=document.createElement('label');l.textContent=label+' ';const i=document.createElement('input');i.type=type;Object.assign(i,attrs);if(type==='checkbox')i.checked=d[key];else i.value=d[key];i.oninput=()=>{d[key]=type==='checkbox'?i.checked:i.value;if(!onboardPersist())$('onboard-status').textContent='Draft storage unavailable.';};l.append(i);fields.append(l);return i;};
+ if(d.step===0){const n=field('Restaurant name','name','text',{required:true,maxLength:120});const sl=field('URL slug','slug','text',{required:true,maxLength:60,pattern:'[a-z0-9]+(-[a-z0-9]+)*'});n.addEventListener('input',()=>{if(!d.manualSlug){d.slug=n.value.toLowerCase().normalize('NFKD').replace(/[\\u0300-\\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,60).replace(/-+$/,'');sl.value=d.slug;onboardPersist();}});sl.addEventListener('input',()=>{d.manualSlug=!!sl.value;onboardPersist();});}
+ if(d.step===1){
+ const select=document.createElement('select');select.append(new Option('Choose theme…',''));const palettes=new Map();for(const [name,colors] of Object.entries(themePresets)){palettes.set('preset:'+name,colors);select.append(new Option(name,'preset:'+name));}fields.append(select);
+ const controls=document.createElement('div'),preview=document.createElement('div');preview.style.cssText='padding:16px;border-radius:12px;margin:12px 0';fields.append(controls,preview);
+ const logo=field('Logo URL (HTTPS, optional)','logo','url');logo.addEventListener('input',draw);
+ function draw(){const [p,s,b,c,t,price,bt,border,muted]=d.colors;preview.replaceChildren();preview.style.background=b;preview.style.color=t;const h=document.createElement('h3');h.textContent=d.name;h.style.cssText='padding:12px;background:linear-gradient(120deg,'+p+','+s+');color:'+bt;const card=document.createElement('div');card.style.cssText='padding:12px;background:'+c+';border:1px solid '+border+';border-radius:8px';const title=document.createElement('strong');title.textContent='Signature Pizza';const desc=document.createElement('p');desc.textContent='Freshly prepared';desc.style.color=muted;const cost=document.createElement('p');cost.textContent='Rs. 999';cost.style.color=price;const action=document.createElement('div');action.textContent='+ Add to cart';action.style.cssText='padding:8px;background:'+p+';color:'+bt;card.append(title,desc,cost,action);if(/^https:\/\//i.test(d.logo||'')){const img=document.createElement('img');img.src=d.logo;img.alt='Logo preview';img.style.cssText='width:48px;height:48px;object-fit:contain';preview.append(img);}preview.append(h,card);}
+ function pickers(){controls.replaceChildren();themeLabels.forEach((name,i)=>{const l=document.createElement('label');l.textContent=name+' ';const p=document.createElement('input');p.type='color';p.value=d.colors[i];p.oninput=()=>{d.colors[i]=p.value;onboardPersist();draw();};l.append(p);controls.append(l);});draw();}
+ select.onchange=()=>{if(palettes.has(select.value)){d.colors=[...palettes.get(select.value)];onboardPersist();pickers();}};pickers();
+ db.from('custom_themes').select('id,name,colors').order('name').then(({data,error})=>{if(!select.isConnected||onboardDraft!==d)return;if(error){$('onboard-status').textContent='Custom themes unavailable: '+error.message;return;}for(const t of data||[]){if(t.colors?.length===9&&t.colors.every(c=>validColor(c,null))){palettes.set(t.id,t.colors);select.append(new Option('Custom: '+t.name,t.id));}}});
+ const hint=document.createElement('p');hint.textContent='Direct logo upload is available in Edit branding after creation.';fields.append(hint);
+ }
+ if(d.step===2){field('Tables','tables','number',{required:true,min:1,max:500,step:1});field('Tax %','tax','number',{required:true,min:0,max:100,step:.01});field('Service charge %','service','number',{required:true,min:0,max:100,step:.01});field('Cash enabled','cash','checkbox');field('Card enabled','card','checkbox');}
+ if(d.step===3){const p=document.createElement('p');p.textContent=d.name+' · '+d.slug+' · '+d.tables+' tables · Tax '+d.tax+'% · Service '+d.service+'% · '+[d.cash?'Cash':'',d.card?'Card':''].filter(Boolean).join(' / ');fields.append(p);const note=document.createElement('p');note.textContent='Creates an active restaurant with an empty menu. Accounts, subscriptions and QR setup follow in later phases.';fields.append(note);}
  $('onboard-panel').hidden=false;onboardRefresh();
 }
-$('onboard-start').onclick=()=>{if(onboardBusy||!onboardUser)return;if(onboardRead()){ $('onboard-status').textContent='Resume or discard your existing draft first.';onboardDraft=onboardRead();onboardRender();return;}onboardDraft={id:crypto.randomUUID(),step:0,name:'',slug:'',tables:'10',tax:'0',service:'0',cash:true,card:true};onboardPersist();onboardRender();};
+$('onboard-start').onclick=()=>{if(onboardBusy||!onboardUser)return;if(onboardRead()){ $('onboard-status').textContent='Resume or discard your existing draft first.';onboardDraft=onboardRead();onboardRender();return;}onboardDraft={id:crypto.randomUUID(),step:0,version:2,colors:[...themePresets['Midnight Amber']],logo:'',manualSlug:false,name:'',slug:'',tables:'10',tax:'0',service:'0',cash:true,card:true};onboardPersist();onboardRender();};
 $('onboard-resume').onclick=()=>{if(onboardBusy)return;onboardDraft=onboardRead();if(onboardDraft)onboardRender();};
 $('onboard-back').onclick=()=>{if(onboardBusy||!onboardDraft)return;onboardDraft.step=Math.max(0,onboardDraft.step-1);onboardPersist();onboardRender();};
 $('onboard-close').onclick=()=>{if(onboardBusy)return;if(!onboardPersist()){ $('onboard-status').textContent='Could not save draft on this browser.';return;}$('onboard-panel').hidden=true;onboardRefresh();};
@@ -833,11 +832,12 @@ $('onboard-discard').onclick=()=>{if(onboardBusy||!confirm('Discard this onboard
 $('onboard-form').onsubmit=async e=>{
  e.preventDefault();if(onboardBusy||!onboardDraft||!onboardUser)return;const d=onboardDraft,status=$('onboard-status');status.textContent='';
  if(d.step===0){d.name=d.name.trim();d.slug=d.slug.trim();if(!d.name||!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(d.slug)){status.textContent='Enter valid name and slug.';return;}}
- if(d.step===1&&(!d.cash&&!d.card)){status.textContent='Enable at least one payment method.';return;}
- if(d.step<2){d.step++;onboardPersist();onboardRender();return;}
- if(!d.name||!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(d.slug)||!Number.isInteger(Number(d.tables))||Number(d.tables)<1||Number(d.tables)>500||![d.tax,d.service].every(v=>v!==''&&Number.isFinite(Number(v))&&Number(v)>=0&&Number(v)<=100)||(!d.cash&&!d.card)){status.textContent='Invalid draft. Go back and check settings.';return;}
+ if(d.step===1&&d.logo&&!/^https:\/\//i.test(d.logo)){status.textContent='Logo URL must start with https://';return;}
+ if(d.step===2&&(!d.cash&&!d.card)){status.textContent='Enable at least one payment method.';return;}
+ if(d.step<3){d.step++;onboardPersist();onboardRender();return;}
+ if(!Array.isArray(d.colors)||d.colors.length!==9||d.colors.some(c=>!validColor(c,null))||(d.logo&&!/^https:\/\//i.test(d.logo))||!d.name||!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(d.slug)||!Number.isInteger(Number(d.tables))||Number(d.tables)<1||Number(d.tables)>500||![d.tax,d.service].every(v=>v!==''&&Number.isFinite(Number(v))&&Number(v)>=0&&Number(v)<=100)||(!d.cash&&!d.card)){status.textContent='Invalid draft. Go back and check settings.';return;}
  const session=epoch;onboardBusy=true;for(const b of $('onboard-form').querySelectorAll('button'))b.disabled=true;
- try{const {data:existing,error:lookup}=await db.from('restaurants').select('id,name,slug').eq('id',d.id).maybeSingle();if(lookup)throw lookup;if(!existing){const {error}=await db.from('restaurants').insert({id:d.id,name:d.name,slug:d.slug,status:'active',table_count:Number(d.tables),tax_percent:Number(d.tax),service_charge_percent:Number(d.service),cash_enabled:d.cash,card_enabled:d.card});if(error)throw error;}if(session!==epoch)return;try{localStorage.removeItem(onboardKey());}catch{}onboardDraft=null;$('onboard-panel').hidden=true;onboardRefresh();message('Restaurant created: '+d.name);await refreshRestaurants();}catch(err){if(session===epoch)status.textContent='Creation not confirmed: '+err.message+' — retry using the same draft.';}finally{onboardBusy=false;for(const b of $('onboard-form').querySelectorAll('button'))b.disabled=false;if(onboardDraft&&session===epoch)$('onboard-back').disabled=onboardDraft.step===0;}
+ try{const {data:existing,error:lookup}=await db.from('restaurants').select('id,name,slug').eq('id',d.id).maybeSingle();if(lookup)throw lookup;if(!existing){const {error}=await db.from('restaurants').insert({id:d.id,name:d.name,slug:d.slug,status:'active',table_count:Number(d.tables),tax_percent:Number(d.tax),service_charge_percent:Number(d.service),cash_enabled:d.cash,card_enabled:d.card,logo_url:d.logo||null,...Object.fromEntries(themeKeys.map((k,i)=>[k,d.colors[i]]))});if(error)throw error;}if(session!==epoch)return;try{localStorage.removeItem(onboardKey());}catch{}onboardDraft=null;$('onboard-panel').hidden=true;onboardRefresh();message('Restaurant created: '+d.name);await refreshRestaurants();}catch(err){if(session===epoch)status.textContent='Creation not confirmed: '+err.message+' — retry using the same draft.';}finally{onboardBusy=false;for(const b of $('onboard-form').querySelectorAll('button'))b.disabled=false;if(onboardDraft&&session===epoch)$('onboard-back').disabled=onboardDraft.step===0;}
 };
 
 const viewTitles={dashboard:'Overview',restaurants:'Restaurants',settings:'Restaurant settings',branding:'Themes & branding',subscriptions:'Subscriptions',payments:'Payments',menu:'Menu management',kitchen:'Kitchen management',owners:'Owner management',analytics:'Analytics'};
