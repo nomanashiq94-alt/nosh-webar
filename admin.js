@@ -247,9 +247,14 @@ async function saveItem(e){
   const button=e.target.querySelector('button[type="submit"]');button.disabled=true;button.textContent='Uploading / saving…';
   try{
     for(const type of ['image','model','usdz']){
-      const file=document.getElementById('upload-'+type).files[0];if(!file)continue;
+      let file=document.getElementById('upload-'+type).files[0];if(!file)continue;
       const valid=type==='image'?['image/jpeg','image/png','image/webp'].includes(file.type):file.name.toLowerCase().endsWith('.'+(type==='model'?'glb':'usdz'));
       if(!valid||file.size===0||file.size>(type==='image'?5:50)*1024*1024)throw Error('Invalid or oversized '+type+' file.');
+      if(type==='image'){
+        document.getElementById('upload-status').textContent='Optimizing food photo…';
+        file=await optimizeFoodPhoto(file);
+        if(restaurantId!==adminRestaurantId||!adminAuthorized)throw Error('Restaurant changed; please save again.');
+      }
       const ext=type==='image'?({'image/jpeg':'jpg','image/png':'png','image/webp':'webp'}[file.type]):type==='model'?'glb':'usdz';
       const path=restaurantId+'/'+id+'/'+crypto.randomUUID()+'.'+ext;
       document.getElementById('upload-status').textContent='Uploading '+type+'…';
@@ -286,4 +291,16 @@ try {
   });
 } catch (error) {
   adminMessage(error.message);
+}
+
+async function optimizeFoodPhoto(file){
+  const bitmap=await createImageBitmap(file);
+  try{
+    const scale=Math.min(1,1200/Math.max(bitmap.width,bitmap.height));
+    const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(bitmap.width*scale));canvas.height=Math.max(1,Math.round(bitmap.height*scale));
+    const ctx=canvas.getContext('2d');if(!ctx)throw Error('Image optimization unavailable.');ctx.drawImage(bitmap,0,0,canvas.width,canvas.height);
+    const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/webp',0.84));
+    if(!blob||blob.type!=='image/webp'||!blob.size||blob.size>=file.size)return file;
+    return new File([blob],file.name.replace(/\.[^.]+$/,'')+'.webp',{type:'image/webp'});
+  }finally{bitmap.close();}
 }
