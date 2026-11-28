@@ -51,14 +51,15 @@ async function startCloud() {
     menuDb = window.createNoshClient();
     const slug = window.NOSH_RESTAURANT?.slug;
     if (!slug) throw Error('Restaurant identification missing');
-    const {data:restaurant,error} = await menuDb.from('restaurants').select('id, name, slug').eq('slug',slug).eq('status','active').maybeSingle();
+    const {data:restaurant,error} = await menuDb.from('restaurants').select('id,name,slug,logo_url,primary_color,secondary_color,background_color,card_color,text_color,price_color,button_text_color,border_color,muted_text_color').eq('slug',slug).eq('status','active').maybeSingle();
     if (error) throw error;
     if (!restaurant) throw Error('Restaurant not found or inactive');
     activeRestaurantId = restaurant.id;
     window.NOSH_ACTIVE_RESTAURANT = restaurant;
+    window.dispatchEvent(new Event('nosh-restaurant-resolved'));
     const reload = () => { clearTimeout(reloadTimer); reloadTimer=setTimeout(() => { if(navigator.onLine) loadMenu().catch(e => menuMessage(e.message)); },150); };
     menuDb.channel('public-menu-'+activeRestaurantId).on('postgres_changes',{event:'*',schema:'public',table:'menu_items',filter:'restaurant_id=eq.'+activeRestaurantId},reload).subscribe(status => {
-      if (status === 'SUBSCRIBED') { menuMessage('Menu connected'); reload(); }
+      if (status === 'SUBSCRIBED') { menuMessage('Menu connected'); if(menuReady) reload(); }
       else if (['CHANNEL_ERROR','TIMED_OUT','CLOSED'].includes(status)) menuMessage('Live menu reconnecting');
     });
     await loadMenu();
