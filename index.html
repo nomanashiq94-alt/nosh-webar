@@ -412,20 +412,12 @@
         const context = window.NOSH_ACTIVE_RESTAURANT;
         if (!context?.id || typeof window.createNoshClient !== 'function') return false;
         let restaurant = context;
-        try {
-          const { data, error } = await window.createNoshClient()
-            .from('restaurants')
-            .select('id,name,slug,logo_url,primary_color,secondary_color,background_color,card_color,text_color,price_color,button_text_color,border_color,muted_text_color')
-            .eq('id', context.id)
-            .eq('status', 'active')
-            .single();
-          if (error || !data) throw error || new Error('Restaurant branding not found');
-          // Guard against a restaurant switch while the request was in flight.
-          if (window.NOSH_ACTIVE_RESTAURANT?.id !== data.id) return false;
-          restaurant = data;
-        } catch (error) {
-          console.warn('Branding lookup failed; retrying:', error);
-          return false;
+        if (!Object.prototype.hasOwnProperty.call(context,'primary_color')) {
+          try {
+            const {data,error}=await window.createNoshClient().from('restaurants').select('id,name,slug,logo_url,primary_color,secondary_color,background_color,card_color,text_color,price_color,button_text_color,border_color,muted_text_color').eq('id',context.id).eq('status','active').single();
+            if(error||!data||window.NOSH_ACTIVE_RESTAURANT?.id!==data.id)return false;
+            restaurant=data;
+          } catch { return false; }
         }
         const primary = validColor(restaurant.primary_color, '#f59e0b');
         const secondary = validColor(restaurant.secondary_color, '#fb923c');
@@ -474,17 +466,9 @@
           const img = new Image();
           img.alt = name + ' logo';
           img.className = 'w-full h-full object-contain';
-          const loaded = await new Promise(resolve => {
-            const timeout = setTimeout(() => resolve(false), 5000);
-            img.onload = () => { clearTimeout(timeout); resolve(true); };
-            img.onerror = () => { clearTimeout(timeout); resolve(false); };
-            img.src = logo;
-          });
-          if (loaded && window.NOSH_ACTIVE_RESTAURANT?.id === restaurant.id) {
-            icon.replaceChildren(img);
-          } else if (!loaded) {
-            console.warn('Restaurant logo could not load. Check that the image URL allows embedding:', logo);
-          }
+          img.onload=()=>{if(window.NOSH_ACTIVE_RESTAURANT?.id===restaurant.id)icon.replaceChildren(img);};
+          img.onerror=()=>{console.warn('Restaurant logo unavailable');};
+          img.src=logo;
         }
         const loadingScreen = document.getElementById('restaurant-loading-screen');
         if (loadingScreen) loadingScreen.hidden = true;
@@ -493,7 +477,7 @@
       window.addEventListener('DOMContentLoaded', () => {
         // The restaurant is resolved asynchronously by menu-cloud.js.
         let attempts = 0;
-        const timer = setInterval(async () => {
+        const attempt = async () => {
           if (timer.busy) return;
           timer.busy = true;
           try {
@@ -510,7 +494,10 @@
             const panel = document.querySelector('#restaurant-loading-screen .loading-panel');
             if (panel) panel.innerHTML = '<div class="loading-title">Unable to load restaurant</div><div class="loading-detail">Please refresh the page and try again.</div>';
           } finally { timer.busy = false; }
-        }, 500);
+        };
+        const timer = setInterval(attempt, 500);
+        window.addEventListener("nosh-restaurant-resolved",attempt,{once:true});
+        void attempt();
       });
     })();
   </script>
@@ -1045,6 +1032,6 @@ if(securePilot()){
       startCloud();
     });
   </script>
-  <script src="menu-cloud.js?v=58-recovery"></script>
+  <script src="menu-cloud.js?v=69-fast-start"></script>
 </body>
 </html>
