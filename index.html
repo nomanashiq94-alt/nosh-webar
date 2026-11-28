@@ -741,6 +741,16 @@
       return arEnginePromise;
     }
 
+    // Warm only the engine on explicit interaction, never download food models in bulk.
+    function warmArEngine(event) {
+      const button=event.target.closest?.('button[onclick^="openArModal("]');
+      if(!button||navigator.connection?.saveData)return;
+      void ensureArEngine().catch(()=>{});
+    }
+    document.addEventListener('pointerover',warmArEngine,{passive:true});
+    document.addEventListener('pointerdown',warmArEngine,{passive:true});
+    document.addEventListener('focusin',warmArEngine);
+
     function openArModal(itemId) {
       const item = resolveSize(menuItems.find(i => i.id === itemId), selectedSizes.get(itemId));
       if (!item) return;
@@ -783,6 +793,8 @@
       setTimeout(() => { if (!currentLoad.signal.aborted) modal.classList.remove('opacity-0'); }, 10);
       if (!model) { viewer.removeAttribute('src'); viewer.querySelector('[slot="ar-button"]').style.display='none'; return; }
       viewer.querySelector('[slot="ar-button"]').style.display='none';
+      const poster=mediaUrl(item,'image');
+      if(poster)viewer.setAttribute('poster',poster);else viewer.removeAttribute('poster');
       ensureArEngine().then(() => {
       if (currentLoad.signal.aborted) return;
       viewer.scale = '1 1 1';
@@ -799,7 +811,7 @@
           status.textContent = 'Camera AR could not start. Open the menu in Safari on iPhone or Chrome on an AR-capable Android phone.';
         }
       }, {signal:arLoad.signal});
-      viewer.setAttribute('src', model);
+      if(viewer.getAttribute('src')!==model)viewer.setAttribute('src', model);
       if (mediaUrl(item,'usdz')) viewer.setAttribute('ios-src', mediaUrl(item,'usdz'));
       else viewer.removeAttribute('ios-src');
       viewer.setAttribute('ar-modes', item.size
@@ -841,6 +853,7 @@
         const viewer=document.getElementById('food-viewer');
         viewer.removeAttribute('src');
         viewer.removeAttribute('ios-src');
+        viewer.removeAttribute('poster');
       }, 300);
     }
 
