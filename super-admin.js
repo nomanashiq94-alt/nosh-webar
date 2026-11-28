@@ -150,7 +150,8 @@ async function refreshRestaurants() {
     const copy = document.createElement('button'); copy.type='button'; copy.textContent='Copy menu link'; copy.onclick=async()=>{const url=new URL('./',location.href);url.searchParams.set('restaurant',r.slug);try{await navigator.clipboard.writeText(url.href);message('Menu link copied.');}catch{message(url.href);}};
     const security=document.createElement('button');security.type='button';security.textContent='Order security';security.onclick=()=>openOrderSecurity(r);
     const openMenu=document.createElement('a');openMenu.className='restaurant-edit';openMenu.textContent='Open menu';const menuUrl=new URL('./',location.href);menuUrl.searchParams.set('restaurant',r.slug);openMenu.href=menuUrl.href;openMenu.target='_blank';openMenu.rel='noopener noreferrer';
-    li.append(strong, small, edit, manage, subscription, payments, settings, security, copy, openMenu); list.append(li);
+    const qr=document.createElement('button');qr.type='button';qr.textContent='QR card';qr.onclick=()=>openRestaurantQR(r,menuUrl.href);
+    li.append(strong, small, edit, manage, subscription, payments, settings, security, copy, openMenu,qr); list.append(li);
   }
   filterRestaurants();
   await refreshBillingOverview(data || []);
@@ -1081,3 +1082,28 @@ async function openOrderSecurity(r){
 showView('dashboard');
 
 checkSession().catch(e=>{ $('login').hidden=false; message(e.message||'Connection unavailable.'); });
+function openRestaurantQR(restaurant,url){
+ const dialog=document.createElement('dialog');dialog.style.cssText='max-width:min(92vw,520px);width:100%;padding:20px;border-radius:16px;background:#111827;color:#fff;border:1px solid #475569';
+ const heading=document.createElement('h2');heading.textContent='Restaurant QR card';
+ const status=document.createElement('p');status.setAttribute('role','status');
+ const link=document.createElement('a');link.href=url;link.textContent=url;link.target='_blank';link.rel='noopener noreferrer';link.style.overflowWrap='anywhere';
+ const canvas=document.createElement('canvas');canvas.width=1200;canvas.height=1600;canvas.style.cssText='width:100%;max-width:320px;display:block;margin:12px auto';
+ const close=document.createElement('button');close.textContent='Close';close.onclick=()=>dialog.close();
+ const download=document.createElement('button');download.textContent='Download PNG';download.disabled=true;
+ const print=document.createElement('button');print.textContent='Print card';print.disabled=true;
+ dialog.append(heading,link,canvas,status,download,print,close);document.body.append(dialog);dialog.addEventListener('close',()=>dialog.remove());dialog.showModal();
+ try{
+ if(typeof QRCode!=='function')throw Error('QR library could not load. Refresh and retry.');
+ const qrHost=document.createElement('div');new QRCode(qrHost,{text:url,width:800,height:800,colorDark:'#000000',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M});
+ const qr=qrHost.querySelector('canvas');if(!qr)throw Error('QR canvas unavailable.');
+ const ctx=canvas.getContext('2d');ctx.fillStyle='#0f172a';ctx.fillRect(0,0,1200,1600);ctx.fillStyle='#38bdf8';ctx.fillRect(0,0,1200,20);
+ ctx.textAlign='center';ctx.fillStyle='#ffffff';ctx.font='bold 64px sans-serif';ctx.fillText(restaurant.name,600,180,1060);
+ ctx.font='bold 84px sans-serif';ctx.fillText('SCAN TO ORDER',600,330,1060);
+ ctx.fillStyle='#ffffff';ctx.fillRect(100,420,1000,1000);ctx.imageSmoothingEnabled=false;ctx.drawImage(qr,200,520,800,800);
+ ctx.fillStyle='#ffffff';ctx.font='36px sans-serif';ctx.fillText('Explore menu • View in 3D • Order',600,1490,1080);
+ ctx.fillStyle='#94a3b8';ctx.font='28px sans-serif';ctx.fillText('Powered by Nosh WebAR',600,1550);
+ download.disabled=false;print.disabled=false;status.textContent='Scan-test before printing. Same QR for every table.';
+ download.onclick=()=>{const a=document.createElement('a');a.download=restaurant.slug+'-qr-card.png';a.href=canvas.toDataURL('image/png');a.click();};
+ print.onclick=()=>{const w=window.open('','_blank');if(!w){status.textContent='Allow pop-ups or download the PNG to print.';return;}const img=w.document.createElement('img');img.style.cssText='display:block;width:90mm;height:auto;margin:10mm auto';img.onload=()=>w.print();w.document.body.append(img);img.src=canvas.toDataURL('image/png');};
+ }catch(e){status.textContent=e.message;}
+}
