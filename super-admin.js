@@ -286,6 +286,7 @@ const themeKeys = ['primary_color','secondary_color','background_color','card_co
 const themeIds = ['primary','secondary','background','card','text','price','button_text'];
 const themeLabels = ['Primary','Secondary','Background','Card','Text','Price','Button text'];
 const themePresets = {
+'Midnight Amber':['#f59e0b','#f97316','#020617','#0f172a','#ffffff','#f59e0b','#000000'],
 'Luxury Gold':['#d4af37','#8b6914','#101010','#202020','#ffffff','#eac75b','#101010'],
 'Classic Italian':['#b91c1c','#15803d','#fff7ed','#ffffff','#292524','#b91c1c','#ffffff'],
 'Ocean Blue':['#0284c7','#155e75','#eff6ff','#ffffff','#172554','#0369a1','#ffffff'],
