@@ -51,7 +51,20 @@ async function refreshBillingOverview(restaurants, pending=fetchBillingOverview(
   }
   const expected = Object.entries(totals).map(([currency, amount]) =>
     currency + ' ' + amount.toLocaleString('en-PK', {maximumFractionDigits:2})).join(' / ') || '—';
+  const activeIds = new Set(restaurants.filter(r => r.status === 'active').map(r => r.id));
+  const feeSummary = list => {
+    const sums = new Map();
+    for (const s of list) {
+      const currency = s.currency || 'PKR';
+      sums.set(currency, (sums.get(currency) || 0) + Number(s.monthly_fee || 0));
+    }
+    return [...sums].map(([currency, amount]) => currency + ' ' + amount.toLocaleString('en-PK', {maximumFractionDigits:2})).join(' / ') || '—';
+  };
+  const activeMRR = feeSummary(configured.filter(s => activeIds.has(s.restaurant_id) && ['active','expiring_soon'].includes(s.subscription_status)));
+  const unpaidFees = feeSummary(configured.filter(s => ['unpaid','overdue'].includes(s.payment_status)));
   const stats = [
+    ['Active monthly recurring fees (MRR)', activeMRR],
+    ['Monthly fees marked unpaid / overdue (not balance)', unpaidFees],
     ['Total restaurants', restaurants.length],
     ['Subscriptions configured', configured.length],
     ['Active', counts.active],
@@ -60,7 +73,7 @@ async function refreshBillingOverview(restaurants, pending=fetchBillingOverview(
     ['Suspended', counts.suspended],
     ['Not configured / no expiry / not started', counts.not_configured + counts.no_expiry + counts.not_started],
     ['Paid / Unpaid / Overdue', `${configured.filter(s => s.payment_status === 'paid').length} / ${configured.filter(s => s.payment_status === 'unpaid').length} / ${configured.filter(s => s.payment_status === 'overdue').length}`],
-    ['Expected monthly fees', expected]
+    ['All configured monthly fees', expected]
   ];
   summary.replaceChildren();
   for (const [label, value] of stats) {
