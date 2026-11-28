@@ -37,7 +37,9 @@ async function loadMenu() {
   const {data,error} = await menuDb.from('menu_items').select('*').eq('restaurant_id',activeRestaurantId).order('sort_order').order('id');
   await status;
   if (ticket !== menuRequest) return;
-  if (error) { menuMessage('Menu unavailable: '+error.message); return; }
+  if (error || !Array.isArray(data)) { menuMessage('Menu unavailable · retrying'); return; }
+  if (!navigator.onLine) return;
+  menuMessage('Menu connected');
   const signature = JSON.stringify(data);
   if (menuReady && signature === lastMenuSignature) return;
   menuItems = data.map(i => ({...i,price:Number(i.price)}));
@@ -62,7 +64,7 @@ async function startCloud() {
     await loadMenu();
     setInterval(()=>{if(!document.hidden) reload();},15000);
     window.addEventListener('online',reload);
-    window.addEventListener('offline',()=>{ ++statusRequest; setOrderingState('checking'); menuMessage('Offline · reconnect before ordering'); });
+    window.addEventListener('offline',()=>{ ++statusRequest; ++menuRequest; restaurantSettings=null; setOrderingState('checking'); menuMessage('Offline · reconnect before ordering'); });
     document.addEventListener('visibilitychange',()=>{if(!document.hidden) reload();});
   } catch(error) { menuMessage(error.message); setOrderingState('checking'); }
 }
