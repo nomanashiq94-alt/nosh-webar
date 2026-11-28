@@ -21,13 +21,15 @@ function statusBadge(code) {
   span.textContent = subscriptionStatusLabels[code] || 'Unknown';
   return span;
 }
-async function refreshBillingOverview(restaurants) {
+function fetchBillingOverview(){return Promise.all([db.from('restaurant_subscription_status').select('restaurant_id,restaurant_name,plan_name,monthly_fee,currency,payment_status,expires_on,grace_period_days,subscription_status,days_until_expiry'),db.from('restaurant_subscriptions').select('restaurant_id,access_mode')]);}
+async function refreshBillingOverview(restaurants, pending=fetchBillingOverview(), sessionEpoch=epoch) {
   const summary = $('billing-summary');
   const rows = $('billing-rows');
   const alerts = $('billing-alerts');
   const errorBox = $('billing-error');
   errorBox.textContent = '';
-  const [{data,error},{data:modes,error:modeError}] = await Promise.all([db.from('restaurant_subscription_status').select('restaurant_id,restaurant_name,plan_name,monthly_fee,currency,payment_status,expires_on,grace_period_days,subscription_status,days_until_expiry'),db.from('restaurant_subscriptions').select('restaurant_id,access_mode')]);
+  const [{data,error},{data:modes,error:modeError}] = await pending;
+  if(sessionEpoch!==epoch)return;
   if (error) {
     summary.textContent = 'Subscription status records unavailable.';
     rows.replaceChildren(); alerts.replaceChildren();
@@ -118,9 +120,9 @@ async function refreshBillingOverview(restaurants) {
 }
 
 async function refreshRestaurants() {
-  const { data, error } = await db.from('restaurants')
-    .select('id,name,slug,status,created_at,logo_url,primary_color,secondary_color')
-    .order('created_at', { ascending: false });
+  const sessionEpoch=epoch;
+  const [{data,error},billing] = await Promise.all([db.from('restaurants').select('id,name,slug,status,created_at,logo_url,primary_color,secondary_color').order('created_at',{ascending:false}),fetchBillingOverview()]);
+  if(sessionEpoch!==epoch)return;
   if (error) throw error;
   const list = $('restaurants'); list.replaceChildren();
   renderPickers(data || []);
@@ -154,7 +156,7 @@ async function refreshRestaurants() {
     li.append(strong, small, edit, manage, subscription, payments, settings, security, copy, openMenu,qr); list.append(li);
   }
   filterRestaurants();
-  await refreshBillingOverview(data || []);
+  await refreshBillingOverview(data || [],Promise.resolve(billing),sessionEpoch);
   if (!data.length) { const li = document.createElement('li'); li.textContent = 'No restaurants yet.'; list.append(li); }
 }
 
