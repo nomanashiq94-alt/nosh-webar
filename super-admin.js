@@ -1107,3 +1107,40 @@ function openRestaurantQR(restaurant,url){
  print.onclick=()=>{const w=window.open('','_blank');if(!w){status.textContent='Allow pop-ups or download the PNG to print.';return;}const img=w.document.createElement('img');img.style.cssText='display:block;width:90mm;height:auto;margin:10mm auto';img.onload=()=>w.print();w.document.body.append(img);img.src=canvas.toDataURL('image/png');};
  }catch(e){status.textContent=e.message;}
 }
+
+
+/* Local image palette extraction; never uploads the source image. */
+let imageThemeSequence=0;
+function resetImageTheme(){++imageThemeSequence;const f=$('theme-image-file');if(f)f.value='';$('theme-image-status').textContent='';$('theme-image-swatches').replaceChildren();$('theme-image-preview').hidden=true;$('theme-image-preview').removeAttribute('src');}
+function paletteContrast(a,b){return (Math.max(lum(a),lum(b))+.05)/(Math.min(lum(a),lum(b))+.05);}
+function paletteMix(a,b,t){const rgb=c=>c.slice(1).match(/../g).map(v=>parseInt(v,16));const x=rgb(a),y=rgb(b);return '#'+x.map((v,i)=>Math.round(v*(1-t)+y[i]*t).toString(16).padStart(2,'0')).join('');}
+function paletteReadable(a,b){return paletteContrast(a,b)>=4.5;}
+function extractImagePalette(canvas){
+ const pixels=canvas.getContext('2d',{willReadFrequently:true}).getImageData(0,0,canvas.width,canvas.height).data,bins=new Map();
+ for(let i=0;i<pixels.length;i+=4){if(pixels[i+3]<180)continue;const r=pixels[i],g=pixels[i+1],b=pixels[i+2],key=(r>>4)*256+(g>>4)*16+(b>>4);const v=bins.get(key)||[0,0,0,0];v[0]++;v[1]+=r;v[2]+=g;v[3]+=b;bins.set(key,v);}
+ const ranked=[...bins.values()].sort((a,b)=>b[0]-a[0]).map(v=>({n:v[0],rgb:v.slice(1).map(x=>Math.round(x/v[0]))}));if(!ranked.length)throw Error('No opaque colors found.');
+ const colors=[];for(const v of ranked){if(colors.every(c=>Math.hypot(...c.rgb.map((x,i)=>x-v.rgb[i]))>38)){colors.push({...v,hex:'#'+v.rgb.map(x=>x.toString(16).padStart(2,'0')).join('')});if(colors.length===12)break;}}
+ const dominant=colors[0].hex,dark=lum(dominant)<.25,base=dark?'#111111':'#ffffff',ink=dark?'#ffffff':'#111111';
+ const bg=paletteMix(dominant,base,.78),card=paletteMix(bg,dark?'#ffffff':'#000000',dark?.055:.025);
+ const accents=colors.filter(c=>Math.max(...c.rgb)-Math.min(...c.rgb)>35);
+ const primary=(accents[0]||colors[1]||colors[0]).hex;
+ const button=paletteContrast(primary,'#ffffff')>=paletteContrast(primary,'#111111')?'#ffffff':'#111111';
+ const secondary=colors.find(c=>c.hex!==primary&&paletteReadable(c.hex,button))?.hex||primary;
+ function readable(c){for(let i=0;i<=10;i++){const x=paletteMix(c,ink,i/10);if(paletteReadable(x,card)&&paletteReadable(x,bg))return x;}return ink;}
+ return {colors:colors.slice(0,8).map(c=>c.hex),theme:[primary,secondary,bg,card,readable(ink),readable(primary),button,paletteMix(card,ink,.22),readable(paletteMix(card,ink,.65))]};
+}
+if($('theme-image-file')){
+ $('theme-image-file').onchange=async()=>{
+ const file=$('theme-image-file').files[0],request=++imageThemeSequence,restaurant=selectedRestaurant?.id,session=epoch,brandRequest=brandingRequest,status=$('theme-image-status');
+ $('theme-image-swatches').replaceChildren();$('theme-image-preview').hidden=true;$('theme-image-preview').removeAttribute('src');
+ if(!file||!restaurant||brandingBusy)return;
+ if(!['image/jpeg','image/png','image/webp'].includes(file.type)||file.size>10*1024*1024){status.textContent='Choose a JPG, PNG or WebP image up to 10 MB.';return;}
+ status.textContent='Extracting colors…';let bitmap;
+ try{bitmap=await createImageBitmap(file);if(request!==imageThemeSequence||session!==epoch||brandRequest!==brandingRequest||restaurant!==selectedRestaurant?.id||brandingBusy)return;
+ const canvas=document.createElement('canvas'),scale=Math.min(1,160/Math.max(bitmap.width,bitmap.height));canvas.width=Math.max(1,Math.round(bitmap.width*scale));canvas.height=Math.max(1,Math.round(bitmap.height*scale));canvas.getContext('2d').drawImage(bitmap,0,0,canvas.width,canvas.height);
+ const result=extractImagePalette(canvas);themeDraft=result.theme;renderTheme();
+ for(const c of result.colors){const sw=document.createElement('span');sw.style.background=c;sw.title=c;sw.setAttribute('aria-label',c);$('theme-image-swatches').append(sw);}
+ $('theme-image-preview').src=canvas.toDataURL('image/png');$('theme-image-preview').hidden=false;status.textContent='Theme generated. Adjust colors if needed, then Save & Apply Theme.';
+ }catch(e){if(request===imageThemeSequence)status.textContent='Could not read image: '+e.message;}finally{bitmap?.close();}
+ };
+}
