@@ -708,7 +708,7 @@
       } else {
         cartContainer.innerHTML = cart.map((item, index) => `
           <div class="p-3 bg-slate-800/60 border border-slate-700/50 rounded-xl flex items-center justify-between gap-3">
-            <img src="${esc(mediaUrl(item,'image'))}" alt="${esc(item.title)}" class="w-12 h-12 rounded-lg object-cover" />
+            <img src="${esc(mediaUrl(item,'image'))}" alt="${esc(item.title)}" class="w-12 h-12 rounded-lg object-cover" decoding="async" />
             <div class="flex-1">
               <h4 class="text-xs font-bold text-white leading-tight">${esc(item.title)}</h4>
               <span class="text-xs text-amber-400 font-semibold">${money(item.price * item.quantity)}</span>
@@ -1042,6 +1042,6 @@ if(securePilot()){
       startCloud();
     });
   </script>
-  <script src="menu-cloud.js"></script>
+  <script src="menu-cloud.js?v=58-recovery"></script>
 </body>
 </html>
