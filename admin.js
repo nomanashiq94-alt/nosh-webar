@@ -37,12 +37,13 @@ async function chooseAdminRestaurant(id) {
   if (!adminAuthorized) return;
   const select = document.getElementById('admin-restaurant');
   if (!Array.from(select.options).some(option => option.value === id)) return;
+  const requestEpoch=adminEpoch;
   adminRestaurantId = id;
   document.getElementById('admin-form').classList.add('hidden');
   menuItems = [];
   renderAdminList();
   await loadMenu();
-  adminMessage('Managing: ' + select.selectedOptions[0].textContent);
+  if(requestEpoch===adminEpoch&&adminRestaurantId===id)adminMessage('Managing: ' + select.selectedOptions[0].textContent);
 }
 
 
@@ -144,7 +145,8 @@ async function adminSession(session){
   document.getElementById('admin-tools').classList.add('hidden');renderAdminList();
   if(!session){adminMessage('Sign in to edit the shared menu.');return;}
   try {
-    const {data:superAdmin,error:superError}=await adminDb.from('super_admins').select('user_id').eq('user_id',userId).maybeSingle();
+    const [{data:superAdmin,error:superError},membershipResult]=await Promise.all([adminDb.from('super_admins').select('user_id').eq('user_id',userId).maybeSingle(),adminDb.from('menu_admins').select('restaurant_id').eq('user_id',userId).maybeSingle()]);
+    if(epoch!==adminEpoch)return;
     if(superError)throw superError;
     adminIsSuper=!!superAdmin;
     let restaurants=[];
@@ -153,7 +155,7 @@ async function adminSession(session){
       if(error)throw error;
       restaurants=data||[];
     }else{
-      const {data:membership,error}=await adminDb.from('menu_admins').select('restaurant_id').eq('user_id',userId).maybeSingle();
+      const {data:membership,error}=membershipResult;
       if(error)throw error;
       if(membership?.restaurant_id){
         const {data,error:restaurantError}=await adminDb.from('restaurants').select('id,name,slug').eq('id',membership.restaurant_id).maybeSingle();
